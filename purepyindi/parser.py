@@ -2,7 +2,16 @@ from enum import Enum
 from functools import wraps
 from xml.parsers import expat
 import datetime
-from .constants import *
+from .constants import (
+    ISO_TIMESTAMP_FORMAT,
+    INDIPropertyKind,
+    INDIActions,
+    PropertyPerm,
+    PropertyState,
+    SwitchRule,
+    SwitchState,
+    parse_string_into_enum,
+)
 from .log import debug, info, warn, error, critical
 
 def parse_iso_to_datetime(timestamp):
@@ -149,11 +158,16 @@ class INDIStreamParser:
             element = self.current_indi_element
             if element is None:
                 return
-            if self.pending_update['kind'] == INDIPropertyKind.NUMBER:
+            if not contents.strip():
+                # Notable spec deviation: Unset elements are not
+                # provided for in INDI, but have their uses.
+                # They are represented by `None` in the Python API.
+                element['value'] = None
+            elif self.pending_update['kind'] == INDIPropertyKind.NUMBER:
                 try:
                     parsed_number = float(contents)
                 except ValueError:
-                    warn(f"Coudn't parse {contents} as a number")
+                    warn(f"Coudn't parse {contents} as a number for {self.pending_update['device']}.{self.pending_update['name']}.{element['name']}")
                     parsed_number = float('nan')
                 element['value'] = parsed_number
             elif self.pending_update['kind'] == INDIPropertyKind.SWITCH:

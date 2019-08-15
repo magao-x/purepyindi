@@ -1,5 +1,10 @@
-from .constants import *
 import datetime
+from .constants import (
+    INDIActions,
+    INDIPropertyKind,
+    PropertyPerm,
+    PropertyState,
+)
 
 DEF_NUMBER_PROP = b'''
 <defNumberVector device="test" name="prop" state="Idle" perm="rw" timestamp="2019-08-12T20:49:50.420459Z">

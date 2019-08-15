@@ -1,6 +1,11 @@
 import xml.etree.ElementTree as ET
 import datetime
-from .constants import *
+from .constants import (
+    INDIPropertyKind,
+    INDIActions,
+    ISO_TIMESTAMP_FORMAT,
+    INDI_PROTOCOL_VERSION_STRING,
+)
 
 KINDS_TO_NEW_TAG_NAMES = {
     INDIPropertyKind.NUMBER: ('newNumberVector', 'oneNumber'),

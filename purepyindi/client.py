@@ -10,7 +10,15 @@ import threading
 import datetime
 import socket
 import queue
-from .constants import *
+from .constants import (
+    ConnectionStatus,
+    INDIActions,
+    INDIPropertyKind,
+    PropertyPerm,
+    PropertyState,
+    SwitchRule,
+    SwitchState,
+)
 from .log import debug, info, warn, error, critical
 from .parser import INDIStreamParser
 from .generator import mutation_to_xml_message
@@ -179,8 +187,6 @@ class INDIClient:
         element = self.lookup_element(key)
         element.value = value
 
-# devices['maths_y'].properties['val'].elements['value'].value = 3
-
 class Device:
     def __init__(self, name, client_instance):
         self.client_instance = client_instance
@@ -225,7 +231,6 @@ class Element:
         self.name = name
         self._value = None
         self._label = None
-        self._watchers = []
     def to_dict(self):
         return {
             'name': self.name,
@@ -236,8 +241,6 @@ class Element:
         self._value = element_update['value']
         if 'label' in element_update:
             self._label = element_update['label']
-        for watch in self._watchers:
-            watch(self)
     @property
     def label(self):
         return self._label if self._label is not None else self.name
