@@ -19,7 +19,8 @@ from pprint import pprint, pformat
 HOST = 'localhost'
 PORT = 7624
 CHUNK_MAX_READ_SIZE = 1024
-HOST, PORT = 'localhost', 7624
+SYNCHRONIZATION_TIMEOUT = 1 # second
+
 class INDIClient:
     def __init__(self, host, port):
         self.host, self.port = host, port
@@ -27,23 +28,28 @@ class INDIClient:
         self._mutation_queue = queue.Queue()
         self._update_queue = queue.Queue()
         self._parser = INDIStreamParser(self._update_queue)
-        self._thread = None
         self.devices = {}
-
+        self._sender_thread = self._receiver_thread = None
     def _sender(self, current_socket):
         get_properties_mutation = {'action': INDIActions.GET_PROPERTIES}
         get_properties_msg = mutation_to_xml_message(get_properties_mutation)
         debug(f"sending getProperties: {get_properties_msg}")
         current_socket.sendall(get_properties_msg)
         while not self.status == ConnectionStatus.STOPPED:
-            mutation = self._mutation_queue.get()
+            try:
+                mutation = self._mutation_queue.get(timeout=SYNCHRONIZATION_TIMEOUT)
+            except queue.Empty:
+                continue
             debug(f"Issuing mutation:\n{pformat(mutation)}")
             outdata = mutation_to_xml_message(mutation)
             debug(f"XML for mutation:\n{outdata.decode('utf8')}")
             current_socket.sendall(outdata)
     def _receiver(self, current_socket):
         while not self.status == ConnectionStatus.STOPPED:
-            data = current_socket.recv(CHUNK_MAX_READ_SIZE)
+            try:
+                data = current_socket.recv(CHUNK_MAX_READ_SIZE)
+            except socket.timeout:
+                continue
             debug(f"Feeding to parser: {repr(data)}")
             self._parser.parse(data)
             while not self._update_queue.empty():
@@ -52,10 +58,11 @@ class INDIClient:
                 self.apply_update(update)
 
     def start(self):
-        if self._thread is not None:
+        if self._sender_thread is not None:
             raise RuntimeError("Already started")
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.connect((self.host, self.port))
+        self._socket.settimeout(SYNCHRONIZATION_TIMEOUT)
         debug("connected")
         self.status = ConnectionStatus.CONNECTED
         debug(f"Connected to {self.host}:{self.port}")
@@ -74,9 +81,10 @@ class INDIClient:
         )
         self._receiver_thread.start()
     def stop(self):
-        if self._thread is not None and self._thread.is_alive():
+        if self._sender_thread is not None and self._sender_thread.is_alive():
             self.status = ConnectionStatus.STOPPED
-            self._thread.join()
+            self._sender_thread.join()
+            self._receiver_thread.join()
     def _new_parser(self):
         self._parser = INDIStreamParser(self._update_queue)
     def get_or_create_device(self, device_name):
@@ -91,12 +99,12 @@ class INDIClient:
         if update['action'] is INDIActions.PROPERTY_DEF:
             the_device = self.get_or_create_device(device_name)
             the_device.apply_update(update)
-            print("Finished apply_update on device")
+            debug("Finished apply_update on device")
         elif update['action'] is INDIActions.PROPERTY_SET:
             if device_name in self.devices:
                 self.devices[device_name].apply_update(update)
             else:
-                print(f"WARNING: got an update for a property "
+                debug(f"got an update for a property "
                       f"on a device we never saw defined: {update}")
     def mutate(self, device, property, element, value):
         mutation = {
@@ -182,16 +190,16 @@ class Device:
         property_name = update['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
             if property_name in self.properties:
-                print("WARNING: attempt to redefine existing property, ignoring")
+                debug("WARNING: attempt to redefine existing property, ignoring")
                 return
             the_prop = self.create_property(property_name, update)
             the_prop.apply_update(update)
-            print("Finished apply_update on property")
+            debug("Finished apply_update on property")
         elif update['action'] is INDIActions.PROPERTY_SET:
             if property_name in self.properties:
                 self.properties[property_name].apply_update(update)
             else:
-                print(f"WARNING: got an update for a property "
+                debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
     def create_property(self, property_name, update):
         kind = update['kind']
@@ -370,52 +378,3 @@ class LightProperty(Property):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._perm = PropertyPerm.READ_ONLY
-
-# class INDIClient:
-#     def __init__(self, host, port):
-#         self.host = host
-#         self.port = port
-#         self.status = ConnectionStatus.STARTING
-#         self.parser = None
-#         self._mutation_queue = asyncio.Queue()
-#         self._update_queue = asyncio.Queue()
-#         self.devices = World()
-#     def _new_parser(self):
-#         self.parser = INDIStreamParser(self._update_queue)
-#     async def run(self):
-#         while not self.status == STOPPED:
-#             reader, writer = await asyncio.open_connection(
-#                 self.host,
-#                 self.port,
-#             )
-#             self.status = ConnectionStatus.CONNECTED
-#             while not self.status == ConnectionStatus.STOPPED:
-#                 while not self._mutation_queue.empty():
-#                     writer.write(self._mutation_queue.get_nowait())
-#                 self.parser.parse(reader.read())
-#                 await writer.drain()
-
-#                 # issue mutations
-#                 # process updates
-
-# if __name__ == "__main__":
-#     q = asyncio.Queue()
-#     parser = INDIStreamParser(q)
-#     world = World()
-#     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#         s.connect((HOST, PORT))
-#         s.sendall(b"<getProperties version='1.7'/>\n")
-#         data = s.recv(1024)
-#         while data:
-#             # print(data.decode('utf8'))
-#             # print('*'*80)
-#             parser.parse(data)
-#             while not q.empty():
-#                 update = q.get_nowait()
-#                 world.apply_update(update)
-#                 # q.get_nowait()
-#             pprint(world.to_dict())
-#             data = s.recv(1024)
-
-#     print('Received', repr(data))
-

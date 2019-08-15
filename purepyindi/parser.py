@@ -67,7 +67,6 @@ class INDIStreamParser:
         return parser
 
     def parse(self, data):
-        # print(data)
         try:
             self.parser.Parse(data)
         except expat.ExpatError as e:
@@ -75,18 +74,19 @@ class INDIStreamParser:
             self.accumulated_chardata = ''
             self.pending_update = None
             self.current_indi_element = None
-            print(f"WARNING: reset parser state after encountering bad input: {e}")
+            warn(f"reset parser state after encountering bad input: {e}")
 
     # @_reset_on_bad_input
     def start_element_handler(self, tag_name, tag_attributes):
         if self.accumulated_chardata.strip():
-            print(f'WARNING: character data {repr(self.accumulated_chardata)} cannot be sibling of element, discarding')
+            debug(f'character data {repr(self.accumulated_chardata)} cannot be sibling of element, discarding')
 
         if tag_name in self.PROPERTY_DEF_TAGS:
             if self.pending_update is not None:
-                print(f'WARNING: property definition happening while we '
-                       'thought something else was happening: '
-                       '{self.pending_update}')
+                debug(f'property definition happening while we '
+                      f'thought something else was happening. '
+                      f'Discarded pending update was: '
+                      f'{self.pending_update}')
             self.pending_update = {
                 'action': INDIActions.PROPERTY_DEF,
                 'kind': self.PROPERTY_DEF_TAGS[tag_name],
@@ -106,7 +106,10 @@ class INDIStreamParser:
                         self.pending_update[optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.PROPERTY_SET_TAGS:
             if self.pending_update is not None:
-                print(f'WARNING: property setting happening while we thought something else was happening: {self.pending_update}')
+                debug(f'property setting happening while we thought '
+                      f'something else was happening. '
+                      f'Discarded pending update was: '
+                      f'{self.pending_update}')
             self.pending_update = {
                 'action': INDIActions.PROPERTY_SET,
                 'kind': self.PROPERTY_SET_TAGS[tag_name],
@@ -122,7 +125,9 @@ class INDIStreamParser:
                         self.pending_update[optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.ELEMENT_DEF_TAGS or tag_name in self.ELEMENT_SET_TAGS:
             if self.pending_update is None:
-                print(f'WARNING: element definition/setting happening outside property definition/setting')
+                debug(f'element definition/setting happening outside property definition/setting')
+                self.current_indi_element = None
+                return
             self.current_indi_element = {
                 'name': tag_attributes['name']
             }
@@ -142,7 +147,8 @@ class INDIStreamParser:
         self.accumulated_chardata = ''
         if tag_name in self.ELEMENT_DEF_TAGS or tag_name in self.ELEMENT_SET_TAGS:
             element = self.current_indi_element
-            assert element is not None
+            if element is None:
+                return
             if self.pending_update['kind'] == INDIPropertyKind.NUMBER:
                 try:
                     parsed_number = float(contents)
