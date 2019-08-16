@@ -1,4 +1,5 @@
 import asyncio
+import mock
 from .constants import *
 from pprint import pprint
 from .client import INDIClient
@@ -18,8 +19,12 @@ def test_number_update():
     assert client.devices['test'].properties['prop'].elements['value'].value == 0
 
 def test_start_stop_start_stop():
-    client = INDIClient('localhost', 7624)
-    client.start()
-    client.stop()
-    client.start()
-    client.stop()
+    with mock.patch('socket.socket') as mock_socket:
+        mock_socket.connect.return_value = True
+        mock_socket.sendall.return_value = None
+        mock_socket.recv.return_value = ''
+        client = INDIClient('localhost', 7624)
+        client.start()
+        client.stop()
+        client.start()
+        client.stop()
