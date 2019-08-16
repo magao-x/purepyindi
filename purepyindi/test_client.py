@@ -1,5 +1,5 @@
 import asyncio
-import mock
+from unittest import mock
 from .constants import *
 from pprint import pprint
 from .client import INDIClient
