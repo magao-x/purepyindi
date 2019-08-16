@@ -93,6 +93,8 @@ class INDIClient:
             self.status = ConnectionStatus.STOPPED
             self._sender_thread.join()
             self._receiver_thread.join()
+            self._sender_thread = None
+            self._receiver_thread = None
     def _new_parser(self):
         self._parser = INDIStreamParser(self._update_queue)
     def get_or_create_device(self, device_name):

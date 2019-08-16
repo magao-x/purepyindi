@@ -16,3 +16,10 @@ def test_number_update():
     assert 'test' in client.devices
     pprint(client.devices['test'].to_dict())
     assert client.devices['test'].properties['prop'].elements['value'].value == 0
+
+def test_start_stop_start_stop():
+    client = INDIClient('localhost', 7624)
+    client.start()
+    client.stop()
+    client.start()
+    client.stop()
