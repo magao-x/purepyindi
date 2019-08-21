@@ -26,7 +26,11 @@ def construct_property_new(mutation, timestamp):
     for element in mutation['elements']:
         sub = ET.SubElement(xml_doc, sub_tag, attrib={'name': element['name']})
         if mutation['kind'] == INDIPropertyKind.NUMBER:
-            sub.text = element['format'] % (element['value'],)
+            sub.text = (
+                element['format'] % (element['value'],)
+                if element['value'] is not None
+                else ''
+            )
         elif mutation['kind'] == INDIPropertyKind.SWITCH:
             sub.text = element['value'].value
         else:
