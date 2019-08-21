@@ -11,7 +11,15 @@ __all__ = (
     'parse_string_into_enum',
     'INDI_PROTOCOL_VERSION_STRING',
     'ISO_TIMESTAMP_FORMAT',
+    'DEFAULT_HOST',
+    'DEFAULT_PORT',
+    'CHUNK_MAX_READ_SIZE',
 )
+
+CHUNK_MAX_READ_SIZE = 1024
+
+DEFAULT_HOST = 'localhost'
+DEFAULT_PORT = 7624
 
 INDI_PROTOCOL_VERSION_STRING = '1.7'
 ISO_TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'

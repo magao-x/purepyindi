@@ -18,41 +18,41 @@ from .constants import (
     PropertyState,
     SwitchRule,
     SwitchState,
+    CHUNK_MAX_READ_SIZE,
 )
 from .log import debug, info, warn, error, critical
 from .parser import INDIStreamParser
 from .generator import mutation_to_xml_message
 from pprint import pprint, pformat
 
-HOST = 'localhost'
-PORT = 7624
-CHUNK_MAX_READ_SIZE = 1024
 SYNCHRONIZATION_TIMEOUT = 1 # second
 
 class INDIClient:
+    QUEUE_CLASS = queue.Queue
     def __init__(self, host, port):
         self.host, self.port = host, port
         self.status = ConnectionStatus.STARTING
-        self._mutation_queue = queue.Queue()
-        self._update_queue = queue.Queue()
-        self._parser = INDIStreamParser(self._update_queue)
+        self._outbound_queue = self.QUEUE_CLASS()
+        self._inbound_queue = self.QUEUE_CLASS()
+        self._parser = INDIStreamParser(self._inbound_queue)
         self.devices = {}
-        self._sender_thread = self._receiver_thread = None
-    def _sender(self, current_socket):
+        self._writer = self._reader = None
+        self.watchers = set()
+    def _handle_outbound(self, current_socket):
         get_properties_mutation = {'action': INDIActions.GET_PROPERTIES}
         get_properties_msg = mutation_to_xml_message(get_properties_mutation)
         debug(f"sending getProperties: {get_properties_msg}")
         current_socket.sendall(get_properties_msg)
         while not self.status == ConnectionStatus.STOPPED:
             try:
-                mutation = self._mutation_queue.get(timeout=SYNCHRONIZATION_TIMEOUT)
+                mutation = self._outbound_queue.get(timeout=SYNCHRONIZATION_TIMEOUT)
             except queue.Empty:
                 continue
             debug(f"Issuing mutation:\n{pformat(mutation)}")
             outdata = mutation_to_xml_message(mutation)
             debug(f"XML for mutation:\n{outdata.decode('utf8')}")
             current_socket.sendall(outdata)
-    def _receiver(self, current_socket):
+    def _handle_inbound(self, current_socket):
         while not self.status == ConnectionStatus.STOPPED:
             try:
                 data = current_socket.recv(CHUNK_MAX_READ_SIZE)
@@ -60,43 +60,41 @@ class INDIClient:
                 continue
             debug(f"Feeding to parser: {repr(data)}")
             self._parser.parse(data)
-            while not self._update_queue.empty():
-                update = self._update_queue.get_nowait()
+            while not self._inbound_queue.empty():
+                update = self._inbound_queue.get_nowait()
                 debug(f"Got update:\n{pformat(update)}")
                 self.apply_update(update)
-
     def start(self):
-        if self._sender_thread is not None:
-            raise RuntimeError("Already started")
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.connect((self.host, self.port))
-        self._socket.settimeout(SYNCHRONIZATION_TIMEOUT)
-        debug("connected")
-        self.status = ConnectionStatus.CONNECTED
-        debug(f"Connected to {self.host}:{self.port}")
-        self._sender_thread = threading.Thread(
-            target=self._sender,
-            name='INDIClient-sender',
-            daemon=True,
-            args=(self._socket,)
-        )
-        self._sender_thread.start()
-        self._receiver_thread = threading.Thread(
-            target=self._receiver,
-            name='INDIClient-receiver',
-            daemon=True,
-            args=(self._socket,)
-        )
-        self._receiver_thread.start()
+        if self.status is not ConnectionStatus.CONNECTED:
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.connect((self.host, self.port))
+            self._socket.settimeout(SYNCHRONIZATION_TIMEOUT)
+            debug("connected")
+            self.status = ConnectionStatus.CONNECTED
+            debug(f"Connected to {self.host}:{self.port}")
+            self._writer = threading.Thread(
+                target=self._handle_outbound,
+                name='INDIClient-sender',
+                daemon=True,
+                args=(self._socket,)
+            )
+            self._writer.start()
+            self._reader = threading.Thread(
+                target=self._handle_inbound,
+                name='INDIClient-receiver',
+                daemon=True,
+                args=(self._socket,)
+            )
+            self._reader.start()
     def stop(self):
-        if self._sender_thread is not None and self._sender_thread.is_alive():
+        if self.status is ConnectionStatus.CONNECTED:
             self.status = ConnectionStatus.STOPPED
-            self._sender_thread.join()
-            self._receiver_thread.join()
-            self._sender_thread = None
-            self._receiver_thread = None
+            self._writer.join()
+            self._reader.join()
+            self._writer = None
+            self._reader = None
     def _new_parser(self):
-        self._parser = INDIStreamParser(self._update_queue)
+        self._parser = INDIStreamParser(self._inbound_queue)
     def get_or_create_device(self, device_name):
         if device_name in self.devices:
             device = self.devices[device_name]
@@ -116,6 +114,10 @@ class INDIClient:
             else:
                 debug(f"got an update for a property "
                       f"on a device we never saw defined: {update}")
+                return False
+        for watcher in self.watchers:
+            watcher(update)
+        return True
     def mutate(self, device, property, element, value):
         mutation = {
             'action': INDIActions.PROPERTY_NEW,
@@ -146,7 +148,7 @@ class INDIClient:
                 element.to_dict()
             )
         debug(f"Enqueued mutation: {mutation}")
-        self._mutation_queue.put_nowait(mutation)
+        self._outbound_queue.put_nowait(mutation)
     def to_dict(self):
         return {name: device.to_dict() for name, device in self.devices.items()}
     def to_json(self):
