@@ -31,18 +31,18 @@ class ConnectionStatus(Enum):
     STOPPED = 4
 
 class INDIActions(Enum):
-    PROPERTY_DEF = 1
-    PROPERTY_SET = 2
-    PROPERTY_NEW = 3
-    PROPERTY_DEL = 4
-    MESSAGE = 5
-    GET_PROPERTIES = 6
+    PROPERTY_DEF = 'def'
+    PROPERTY_SET = 'set'
+    PROPERTY_NEW = 'new'
+    PROPERTY_DEL = 'del'
+    MESSAGE = 'msg'
+    GET_PROPERTIES = 'get'
 
 class INDIPropertyKind(Enum):
-    NUMBER = 1
-    TEXT = 2
-    SWITCH = 3
-    LIGHT = 4
+    NUMBER = 'num'
+    TEXT = 'txt'
+    SWITCH = 'swt'
+    LIGHT = 'lgt'
 
 class PropertyState(Enum):
     IDLE = 'Idle'
