@@ -26,7 +26,7 @@ DEF_NUMBER_UPDATE = {
     'name': 'prop',
     'perm': PropertyPerm.READ_WRITE,
     'state': PropertyState.IDLE,
-    'timestamp': '2019-08-12T20:49:50.420459Z'
+    'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
 }
 
 SET_NUMBER_PROP = b'''
@@ -44,7 +44,7 @@ SET_NUMBER_UPDATE = {
     'kind': INDIPropertyKind.NUMBER,
     'name': 'prop',
     'state': PropertyState.IDLE,
-    'timestamp': '2019-08-12T20:49:50.420459Z'
+    'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
 }
 
 NEW_NUMBER_MUTATION = {
