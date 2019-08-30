@@ -39,7 +39,8 @@ class AsyncINDIClient(INDIClient):
                 if reconnect_automatically:
                     warn(f"Retrying in {RECONNECTION_DELAY} seconds")
             except Exception as e:
-                warn(f"Swallowed exception: {type(e)}")
+                warn(f"Swallowed exception: {type(e)}, {e}")
+            finally:
                 self.stop()
             connect = reconnect_automatically
             await asyncio.sleep(RECONNECTION_DELAY)

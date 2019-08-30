@@ -21,13 +21,16 @@ setup(
     package_data={  # Optional
         PROJECT: ['VERSION'],
     },
-    extras_require={  # Optional
+    extras_require={
         'dev': ['pytest'],
-        'ipyindi': ['IPython'],
+        'plotINDI': ['IPython'],
+        'ipyindi': ['matplotlib'],
     },
-    entry_points={  # Optional
+    entry_points={
         'console_scripts': [
             f'ipyindi={PROJECT}.ipyindi:main',
+            f'plotINDI={PROJECT}.plotindi:main',
+            f'indiwatcher={PROJECT}.indiwatcher:main',
         ],
     },
     project_urls={  # Optional
