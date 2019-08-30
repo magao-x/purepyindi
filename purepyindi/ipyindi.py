@@ -5,8 +5,6 @@ import logging
 import time
 import sys
 
-DEFAULT_HOST, DEFAULT_PORT = "localhost", 7624
-
 def main():
     import argparse
     parser = argparse.ArgumentParser(add_help=False)

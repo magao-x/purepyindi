@@ -22,7 +22,7 @@ from .constants import (
 )
 from .log import debug, info, warn, error, critical
 from .parser import INDIStreamParser
-from .generator import mutation_to_xml_message
+from .generator import mutation_to_xml_message, format_datetime_as_iso
 from pprint import pprint, pformat
 
 SYNCHRONIZATION_TIMEOUT = 1 # second
@@ -38,6 +38,10 @@ class INDIClient:
         self.devices = {}
         self._writer = self._reader = None
         self.watchers = set()
+    def add_watcher(self, watcher_callback):
+        self.watchers.add(watcher_callback)
+    def remove_watcher(self, watcher_callback):
+        self.watchers.remove(watcher_callback)
     def _handle_outbound(self, current_socket):
         get_properties_mutation = {'action': INDIActions.GET_PROPERTIES}
         get_properties_msg = mutation_to_xml_message(get_properties_mutation)
@@ -151,8 +155,6 @@ class INDIClient:
         self._outbound_queue.put_nowait(mutation)
     def to_dict(self):
         return {name: device.to_dict() for name, device in self.devices.items()}
-    def to_json(self):
-        pass # TODO
     def __str__(self):
         str_represenation = ''
         for device_name in self.devices:
@@ -185,6 +187,12 @@ class INDIClient:
                            f"{device_name}.{property_name}, valid elements "
                            f"are {tuple(property.elements.keys())})")
         return element
+    def __contains__(self, key):
+        try:
+            self.lookup_element(key)
+            return True
+        except KeyError:
+            return False
     def __getitem__(self, key):
         return self.lookup_element(key).value
     def __setitem__(self, key, value):
@@ -196,6 +204,11 @@ class Device:
         self.client_instance = client_instance
         self.name = name
         self.properties = {}
+        self.watchers = set()
+    def add_watcher(self, watcher_callback):
+        self.watchers.add(watcher_callback)
+    def remove_watcher(self, watcher_callback):
+        self.watchers.remove(watcher_callback)
     def apply_update(self, update):
         property_name = update['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
@@ -211,6 +224,10 @@ class Device:
             else:
                 debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
+        else:
+            raise RuntimeError("Unknown INDIAction:", update['action'])
+        for watcher in self.watchers:
+            watcher(update)
     def create_property(self, property_name, update):
         kind = update['kind']
         if kind == INDIPropertyKind.NUMBER:
@@ -235,6 +252,11 @@ class Element:
         self.name = name
         self._value = None
         self._label = None
+        self.watchers = set()
+    def add_watcher(self, watcher_callback):
+        self.watchers.add(watcher_callback)
+    def remove_watcher(self, watcher_callback):
+        self.watchers.remove(watcher_callback)
     def to_dict(self):
         return {
             'name': self.name,
@@ -245,6 +267,8 @@ class Element:
         self._value = element_update['value']
         if 'label' in element_update:
             self._label = element_update['label']
+        for watcher in self.watchers:
+            watcher(self)
     @property
     def label(self):
         return self._label if self._label is not None else self.name
@@ -296,7 +320,7 @@ class SwitchElement(Element):
     rule = SwitchRule.ANY_OF_MANY
     def to_dict(self):
         result = super().to_dict()
-        result['rule'] = self.rule
+        result['rule'] = self.rule.value
         return result
     def _update_from_server(self, element_update):
         super()._update_from_server(element_update)
@@ -325,6 +349,11 @@ class Property:
         self.group = None
         self._state = None
         self.message = None
+        self.watchers = set()
+    def add_watcher(self, watcher_callback):
+        self.watchers.add(watcher_callback)
+    def remove_watcher(self, watcher_callback):
+        self.watchers.remove(watcher_callback)
     @property
     def state(self):
         return self._state
@@ -335,9 +364,14 @@ class Property:
     def perm(self):
         return self._perm if self._perm is not None else PropertyPerm.READ_ONLY
     def to_dict(self):
+        try:
+            format_datetime_as_iso(self.timestamp)
+        except:
+            print(self.device.name, self.name, self.timestamp)
+            raise
         property_dict = {
-            '_timestamp': self.timestamp,
-            '_label': self.label,
+            '_timestamp': format_datetime_as_iso(self.timestamp),
+            '_label': self._label,
             '_perm': self.perm.value,
             '_timeout': self.timeout,
             '_group': self.group,
@@ -359,6 +393,8 @@ class Property:
         for element_update in update['elements']:
             el = self.get_or_create_element(element_update['name'])
             el._update_from_server(element_update)
+        for watcher in self.watchers:
+            watcher(update)
     def get_or_create_element(self, element_name):
         if not element_name in self.elements:
             self.elements[element_name] = self.ELEMENT_CLASS(element_name, self)

@@ -5,6 +5,8 @@ from .constants import *
 from .generator import mutation_to_xml_message
 from .log import debug, info, warn
 
+RECONNECTION_DELAY = 2
+
 class AsyncINDIClient(INDIClient):
     QUEUE_CLASS = asyncio.Queue
     def __init__(self, *args, **kwargs):
@@ -32,15 +34,21 @@ class AsyncINDIClient(INDIClient):
                 await asyncio.gather(
                     self._reader, self._writer
                 )
+            except ConnectionError as e:
+                warn(f"Failed to connect: {repr(e)}")
+                if reconnect_automatically:
+                    warn(f"Retrying in {RECONNECTION_DELAY} seconds")
             except Exception as e:
                 warn(f"Swallowed exception: {type(e)}")
-                self._reader.cancel()
-                self._writer.cancel()
+                self.stop()
             connect = reconnect_automatically
+            await asyncio.sleep(RECONNECTION_DELAY)
     async def stop(self):
         self.status = ConnectionStatus.STOPPED
-        self._reader.cancel()
-        self._writer.cancel()
+        if self._reader is not None:
+            self._reader.cancel()
+        if self._writer is not None:
+            self._writer.cancel()
     async def _handle_inbound(self, reader_handle):
         while not self.status == ConnectionStatus.STOPPED:
             data = await reader_handle.read(CHUNK_MAX_READ_SIZE)

@@ -110,7 +110,7 @@ class INDIStreamParser:
             for optional_attr in self.OPTIONAL_PROPERTY_DEF_ATTRS:
                 if optional_attr in tag_attributes:
                     if optional_attr == 'timestamp':
-                        self.pending_update[optional_attr] = tag_attributes[optional_attr]
+                        self.pending_update[optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
                     else:
                         self.pending_update[optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.PROPERTY_SET_TAGS:
@@ -130,6 +130,8 @@ class INDIStreamParser:
                 if optional_attr in tag_attributes:
                     if optional_attr == 'state':
                         self.pending_update[optional_attr] = parse_string_into_enum(tag_attributes[optional_attr], PropertyState)
+                    elif optional_attr == 'timestamp':
+                        self.pending_update[optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
                     else:
                         self.pending_update[optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.ELEMENT_DEF_TAGS or tag_name in self.ELEMENT_SET_TAGS:
