@@ -12,11 +12,16 @@ Follows the [INDI protocol version 1.7](http://www.clearskyinstitute.com/INDI/IN
 
 **Work-in-progress, mostly undocumented, minimal test coverage. Use at your own risk!**
 
+## Utility scripts
+
+  * `ipyindi` - Connect to an INDI server and start an IPython REPL with the INDIClient available as `c`
+  * `plotINDI` - Watch and plot a time series of changes to a (numeric) INDI property element as they happen
+
 ## Quick start
 
 ```
 $ git clone https://github.com/magao-x/purepyindi.git
-$ pip install -e ./purepyindi[dev,ipyindi]
+$ pip install -e ./purepyindi[dev,ipyindi,plotINDI]
 $ ipyindi
 waiting to receive properties...
 
@@ -57,4 +62,13 @@ print(c['devicename.propertyname.elementname'])
 c.devices['devicename'].properties['propertyname'].elements['elementname'].value = 123.45
 # or
 c['devicename.propertyname.elementname'] = 123.45
+```
+
+## Watching elements
+
+```
+def my_watcher(element):
+    print(f'{element.property.device.name}.{element.property.name}.{element.name} was just updated to {element.value}')
+
+c.devices['devicename'].properties['propertyname'].elements['elementname'].add_watcher(my_watcher)
 ```
