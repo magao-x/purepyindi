@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from purepyindi.client import INDIClient
-from purepyindi.constants import DEFAULT_HOST, DEFAULT_PORT
+from purepyindi.constants import DEFAULT_HOST, DEFAULT_PORT, INDIPropertyKind
 import logging
 import time
 import sys
@@ -58,7 +58,12 @@ def main():
         print('.')
     print()
     device_name, property_name, element_name = args.identifier.split('.')
-    elem = c.devices[device_name].properties[property_name].elements[element_name]
+    the_property = c.devices[device_name].properties[property_name]
+    if the_property.KIND != INDIPropertyKind.NUMBER:
+        raise RuntimeError(
+            f"{args.identifier} is not of kind 'INDIPropertyKind.NUMBER' (got {the_property.kind})"
+        )
+    elem = the_property.elements[element_name]
     elem.add_watcher(print_changes)
     print(f"Added watcher to {elem}")
     plt.ion()
