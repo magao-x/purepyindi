@@ -3,6 +3,7 @@ import logging
 import sys
 from .eventful import AsyncINDIClient
 from .constants import *
+from . import log
 from pprint import pprint
 
 async def watch_for_updates(update):
@@ -33,8 +34,7 @@ def main():
     if args.help:
         parser.print_help()
         sys.exit(1)
-    logging.basicConfig(level=logging.WARN)
-
+    log.set_log_level('INFO')
     c = AsyncINDIClient(args.host, args.port)
     c.add_async_watcher(watch_for_updates)
     loop = asyncio.get_event_loop()

@@ -118,7 +118,7 @@ class INDIClient:
             the_device = self.get_or_create_device(device_name)
             did_anything_change = the_device.apply_update(update)
             debug("Finished apply_update on device")
-        elif update['action'] is INDIActions.PROPERTY_SET:
+        elif update['action'] in (INDIActions.PROPERTY_SET, INDIActions.PROPERTY_NEW):
             if device_name in self.devices:
                 did_anything_change = self.devices[device_name].apply_update(update)
             else:
@@ -140,37 +140,10 @@ class INDIClient:
                 watcher(update)
             return True
         return False
-    def mutate(self, device, property, element):
-        mutation = {
-            'action': INDIActions.PROPERTY_NEW,
-            'device': device.name,
-            'timestamp': datetime.datetime.utcnow().isoformat(),
-            'name': property.name,
-            'elements': []
-        }
-        if isinstance(property, TextProperty):
-            mutation['kind'] = INDIPropertyKind.TEXT
-        elif isinstance(property, NumberProperty):
-            mutation['kind'] = INDIPropertyKind.NUMBER
-        elif isinstance(property, SwitchProperty):
-            mutation['kind'] = INDIPropertyKind.SWITCH
-        else:
-            raise ValueError(f"Asked to mutate {property}, but don't know what kind of property it is")
-        # > The Client must send all members of Number and Text
-        # > vectors, or may send just the members that change
-        # > for other types.
-        #    - INDI Whitepaper, page 4
-        if mutation['kind'] in (INDIPropertyKind.TEXT, INDIPropertyKind.NUMBER):
-            for element_key in property.elements:
-                mutation['elements'].append(
-                    property.elements[element_key].to_dict()
-                )
-        else:
-            mutation['elements'].append(
-                element.to_dict()
-            )
-        debug(f"Enqueued mutation: {mutation}")
-        self._outbound_queue.put_nowait(mutation)
+    def mutate(self, update):
+        self.apply_update(update)
+        self._outbound_queue.put_nowait(update)
+        debug(f"Enqueued mutation: {update}")
     def to_dict(self):
         return {name: device.to_dict() for name, device in self.devices.items()}
     def __str__(self):
@@ -236,7 +209,7 @@ class Device:
             the_prop = self.create_property(property_name, update)
             did_anything_change = the_prop.apply_update(update)
             debug("Finished apply_update on property")
-        elif update['action'] is INDIActions.PROPERTY_SET:
+        elif update['action'] in (INDIActions.PROPERTY_SET, INDIActions.PROPERTY_NEW):
             if property_name in self.properties:
                 did_anything_change = self.properties[property_name].apply_update(update)
             else:
@@ -266,8 +239,8 @@ class Device:
             prop = LightProperty(property_name, self)
         self.properties[property_name] = prop
         return prop
-    def mutate(self, property, element):
-        self.client_instance.mutate(self, property, element)
+    def mutate(self, update):
+        self.client_instance.mutate(update)
     def to_dict(self):
         return {name: prop.to_dict() for name, prop in self.properties.items()}
 
@@ -309,14 +282,13 @@ class Element:
         return self._value
     @value.setter
     def value(self, new_value):
-        self._value = new_value
         if self.property.perm == PropertyPerm.READ_ONLY:
             raise ValueError(
                 f"Attempting to set read-only property "
                 f"{self.property.name}.{self.name} "
                 f"to {repr(new_value)}"
             )
-        self.property.mutate(self)
+        self.property.mutate(self, new_value)
 
 class TextElement(Element):
     pass
@@ -458,9 +430,30 @@ class Property:
         if not element_name in self.elements:
             self.elements[element_name] = self.ELEMENT_CLASS(element_name, self)
         return self.elements[element_name]
-    def mutate(self, element):
-        self._state = PropertyState.BUSY
-        self.device.mutate(self, element)
+    def mutate(self, element, value):
+        mutation = {
+            'action': INDIActions.PROPERTY_NEW,
+            'kind': self.KIND,
+            'device': self.device.name,
+            'name': self.name,
+            'timestamp': datetime.datetime.utcnow().isoformat(),
+            'property': {
+                'elements': {},
+                'state': PropertyState.BUSY
+            }
+        }
+        # > The Client must send all members of Number and Text
+        # > vectors, or may send just the members that change
+        # > for other types.
+        #    - INDI Whitepaper, page 4
+        if mutation['kind'] in (INDIPropertyKind.TEXT, INDIPropertyKind.NUMBER):
+            for element_key in self.elements:
+                mutation['property']['elements'][element_key] = self.elements[element_key].to_dict()
+        else:
+            mutation['property']['elements'][element.name] = element.to_dict()
+        # Actually encode the new value
+        mutation['property']['elements'][element.name]['value'] = value
+        self.device.mutate(mutation)
 
 class TextProperty(Property):
     ELEMENT_CLASS = TextElement
