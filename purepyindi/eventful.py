@@ -40,6 +40,7 @@ class AsyncINDIClient(INDIClient):
                     warn(f"Retrying in {RECONNECTION_DELAY} seconds")
             except Exception as e:
                 warn(f"Swallowed exception: {type(e)}, {e}")
+                raise
             finally:
                 self.stop()
             connect = reconnect_automatically

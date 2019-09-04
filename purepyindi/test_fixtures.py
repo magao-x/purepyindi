@@ -15,18 +15,24 @@ DEF_NUMBER_PROP = b'''
 '''
 DEF_NUMBER_UPDATE = {
     'action': INDIActions.PROPERTY_DEF,
+    'kind': INDIPropertyKind.NUMBER,
     'device': 'test',
-    'elements': [{'format': '%g',
+    'name': 'prop',
+    'property': {
+        'elements': {
+            'value': {
+                'format': '%g',
                 'max': 0.0,
                 'min': 0.0,
                 'name': 'value',
                 'step': 0.0,
-                'value': 0.0}],
-    'kind': INDIPropertyKind.NUMBER,
-    'name': 'prop',
-    'perm': PropertyPerm.READ_WRITE,
-    'state': PropertyState.IDLE,
-    'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
+                'value': 0.0
+            },
+        },
+        'perm': PropertyPerm.READ_WRITE,
+        'state': PropertyState.IDLE,
+        'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
+    }
 }
 
 SET_NUMBER_PROP = b'''
@@ -39,29 +45,45 @@ SET_NUMBER_PROP = b'''
 
 SET_NUMBER_UPDATE = {
     'action': INDIActions.PROPERTY_SET,
-    'device': 'test',
-    'elements': [{'name': 'value', 'value': 1.0}],
     'kind': INDIPropertyKind.NUMBER,
+    'device': 'test',
     'name': 'prop',
-    'state': PropertyState.IDLE,
-    'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
+    'property': {
+        'elements': {
+            'value': {'name': 'value', 'value': 1.0}
+        },
+        'state': PropertyState.IDLE,
+        'timestamp': datetime.datetime(2019, 8, 12, 20, 49, 50, 420459, tzinfo=datetime.timezone.utc)
+    }
 }
 
 NEW_NUMBER_MUTATION = {
     'action': INDIActions.PROPERTY_NEW,
-    'device': 'test',
-    'elements': [{
-        'format': '%g',
-        'max': 0.0,
-        'min': 0.0,
-        'name': 'value',
-        'step': 0.0,
-        'value': 0.0
-    }],
     'kind': INDIPropertyKind.NUMBER,
-    'name': 'prop'
+    'device': 'test',
+    'name': 'prop',
+    'property': {
+        'elements': {
+            'value': {
+                'format': '%g',
+                'max': 0.0,
+                'min': 0.0,
+                'name': 'value',
+                'step': 0.0,
+                'value': 0.0
+            }
+        },
+    },
 }
 
 NEW_NUMBER_TIMESTAMP = datetime.datetime(2019, 8, 13, 22, 45, 17, 867692, tzinfo=datetime.timezone.utc)
 
 NEW_NUMBER_MESSAGE = b'''<newNumberVector device="test" name="prop" timestamp="2019-08-13T22:45:17.867692Z"><oneNumber name="value">0</oneNumber></newNumberVector>\n'''
+
+DEL_PROPERTY_MESSAGE = b'''<delProperty device="test" timestamp="2019-09-03T21:45:04.031508Z">\r\n</delProperty>'''
+
+DEL_PROPERTY_UPDATE = {
+    'action': INDIActions.PROPERTY_DEL,
+    'device': 'test',
+    'timestamp': datetime.datetime(2019, 9, 3, 21, 45, 4, 31508, tzinfo=datetime.timezone.utc),
+}

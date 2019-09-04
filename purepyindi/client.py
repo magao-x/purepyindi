@@ -125,6 +125,16 @@ class INDIClient:
                 debug(f"got an update for a property "
                       f"on a device we never saw defined: {update}")
                 return False
+        elif update['action'] is INDIActions.PROPERTY_DEL:
+            if update['device'] not in self.devices:
+                did_anything_change = False
+            else:
+                if 'name' in update:
+                    # delete one property
+                    self.devices[update['device']].apply_update(update)
+                else:
+                    del self.devices[update['device']]
+                did_anything_change = True
         if did_anything_change:
             for watcher in self.watchers:
                 watcher(update)
@@ -233,6 +243,11 @@ class Device:
                 did_anything_change = False
                 debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
+        elif update['action'] is INDIActions.PROPERTY_DEL:
+            if update['name'] in self.properties:
+                # delete one property
+                del self.properties[update['name']]
+                did_anything_change = True
         else:
             raise RuntimeError("Unknown INDIAction:", update['action'])
         if did_anything_change:
@@ -394,47 +409,43 @@ class Property:
     def perm(self):
         return self._perm if self._perm is not None else PropertyPerm.READ_ONLY
     def to_dict(self):
-        try:
-            format_datetime_as_iso(self.timestamp)
-        except:
-            print(self.device.name, self.name, self.timestamp)
-            raise
         property_dict = {
-            '_timestamp': format_datetime_as_iso(self.timestamp),
-            '_label': self._label,
-            '_perm': self.perm.value,
-            '_timeout': self.timeout,
-            '_group': self.group,
-            '_state': self.state.value,
-            '_message': self.message,
-            '_kind': self.KIND.name,
+            'timestamp': format_datetime_as_iso(self.timestamp),
+            'label': self._label,
+            'perm': self.perm.value,
+            'timeout': self.timeout,
+            'group': self.group,
+            'state': self.state.value,
+            'message': self.message,
+            'kind': self.KIND.value,
+            'elements': {},
         }
         for element in self.elements:
-            property_dict[element] = self.elements[element].to_dict()
+            property_dict['elements'][element] = self.elements[element].to_dict()
         return property_dict
     def apply_update(self, update):
         did_anything_change = False
+        prop = update['property']
+        if 'timestamp' in prop and prop['timestamp'] != self.timestamp:
+            self.timestamp = prop['timestamp']
+            did_anything_change = True
+        if 'label' in prop and prop['label'] != self._label:
+            self._label = prop['label']
+            did_anything_change = True
+        if 'perm' in prop and prop['perm'] != self._perm:
+            self._perm = prop['perm']
+            did_anything_change = True
+        if 'timeout' in prop and prop['timeout'] != self.timeout:
+            self.timeout = prop['timeout']
+            did_anything_change = True
+        if 'group' in prop and prop['group'] != self.group:
+            self.group = prop['group']
+            did_anything_change = True
+        if 'state' in prop and prop['state'] != self._state:
+            self._state = prop['state']
+            did_anything_change = True
 
-        if 'timestamp' in update and update['timestamp'] != self.timestamp:
-            self.timestamp = update['timestamp']
-            did_anything_change = True
-        if 'label' in update and update['label'] != self._label:
-            self._label = update['label']
-            did_anything_change = True
-        if 'perm' in update and update['perm'] != self._perm:
-            self._perm = update['perm']
-            did_anything_change = True
-        if 'timeout' in update and update['timeout'] != self.timeout:
-            self.timeout = update['timeout']
-            did_anything_change = True
-        if 'group' in update and update['group'] != self.group:
-            self.group = update['group']
-            did_anything_change = True
-        if 'state' in update and update['state'] != self._state:
-            self._state = update['state']
-            did_anything_change = True
-
-        for element_update in update['elements']:
+        for element_update in prop['elements'].values():
             el = self.get_or_create_element(element_update['name'])
             did_element_change = el._update_from_server(element_update)
             assert did_element_change in (True, False), "Missing boolean return from Element._update_from_server"

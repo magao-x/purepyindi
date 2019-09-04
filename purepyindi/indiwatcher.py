@@ -26,6 +26,7 @@ def main():
         "-p", "--port",
         help=f"Specify port to connect to (default: {DEFAULT_PORT})",
         nargs="?",
+        type=int,
         default=DEFAULT_PORT,
     )
     args = parser.parse_args()

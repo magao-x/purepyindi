@@ -7,6 +7,7 @@ from .client import INDIClient
 from .test_fixtures import (
     DEF_NUMBER_UPDATE,
     SET_NUMBER_UPDATE,
+    DEL_PROPERTY_UPDATE,
 )
 from pprint import pprint
 
@@ -18,6 +19,13 @@ def test_number_update():
     pprint(client.devices['test'].to_dict())
     assert client.devices['test'].properties['prop'].elements['value'].value == 0
 
+def test_delete_device():
+    client = INDIClient(None, None)
+    client.apply_update(DEF_NUMBER_UPDATE)
+    assert 'test' in client.devices
+    client.apply_update(DEL_PROPERTY_UPDATE)
+    assert 'test' not in client.devices
+
 def test_did_anything_change():
     client = INDIClient(None, None)
     did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
@@ -27,6 +35,10 @@ def test_did_anything_change():
     did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
     assert did_anything_change == True
     did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
+    assert did_anything_change == False
+    did_anything_change = client.apply_update(DEL_PROPERTY_UPDATE)
+    assert did_anything_change == True
+    did_anything_change = client.apply_update(DEL_PROPERTY_UPDATE)
     assert did_anything_change == False
 
 def test_start_stop_start_stop():

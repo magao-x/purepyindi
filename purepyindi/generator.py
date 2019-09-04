@@ -23,7 +23,7 @@ def construct_property_new(mutation, timestamp):
         'name': mutation['name'],
         'timestamp': format_datetime_as_iso(timestamp),
     })
-    for element in mutation['elements']:
+    for element in mutation['property']['elements'].values():
         sub = ET.SubElement(xml_doc, sub_tag, attrib={'name': element['name']})
         if mutation['kind'] == INDIPropertyKind.NUMBER:
             sub.text = (

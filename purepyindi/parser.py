@@ -57,6 +57,12 @@ class INDIStreamParser:
         'oneSwitch',
         'oneLight',
     }
+    PROPERTY_DEL_TAG = 'delProperty'
+    OPTIONAL_PROPERTY_DEL_ATTRS = {
+        'name',
+        'timestamp',
+        'message',
+    }
 
     def __init__(self, update_queue):
         self.update_queue = update_queue
@@ -101,18 +107,20 @@ class INDIStreamParser:
                 'kind': self.PROPERTY_DEF_TAGS[tag_name],
                 'device': tag_attributes['device'],
                 'name': tag_attributes['name'],
-                'elements': [],
-                'perm': parse_string_into_enum(tag_attributes['perm'], PropertyPerm),
-                'state': parse_string_into_enum(tag_attributes['state'], PropertyState)
+                'property': {
+                    'elements': {},
+                    'perm': parse_string_into_enum(tag_attributes['perm'], PropertyPerm),
+                    'state': parse_string_into_enum(tag_attributes['state'], PropertyState)
+                }
             }
             if self.pending_update['kind'] == INDIPropertyKind.SWITCH:
-                self.pending_update['rule'] = parse_string_into_enum(tag_attributes['rule'], SwitchRule)
+                self.pending_update['property']['rule'] = parse_string_into_enum(tag_attributes['rule'], SwitchRule)
             for optional_attr in self.OPTIONAL_PROPERTY_DEF_ATTRS:
                 if optional_attr in tag_attributes:
                     if optional_attr == 'timestamp':
-                        self.pending_update[optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
+                        self.pending_update['property'][optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
                     else:
-                        self.pending_update[optional_attr] = tag_attributes[optional_attr]
+                        self.pending_update['property'][optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.PROPERTY_SET_TAGS:
             if self.pending_update is not None:
                 debug(f'property setting happening while we thought '
@@ -124,16 +132,18 @@ class INDIStreamParser:
                 'kind': self.PROPERTY_SET_TAGS[tag_name],
                 'device': tag_attributes['device'],
                 'name': tag_attributes['name'],
-                'elements': [],
+                'property': {
+                    'elements': {},
+                }
             }
             for optional_attr in self.OPTIONAL_PROPERTY_SET_ATTRS:
                 if optional_attr in tag_attributes:
                     if optional_attr == 'state':
-                        self.pending_update[optional_attr] = parse_string_into_enum(tag_attributes[optional_attr], PropertyState)
+                        self.pending_update['property'][optional_attr] = parse_string_into_enum(tag_attributes[optional_attr], PropertyState)
                     elif optional_attr == 'timestamp':
-                        self.pending_update[optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
+                        self.pending_update['property'][optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
                     else:
-                        self.pending_update[optional_attr] = tag_attributes[optional_attr]
+                        self.pending_update['property'][optional_attr] = tag_attributes[optional_attr]
         elif tag_name in self.ELEMENT_DEF_TAGS or tag_name in self.ELEMENT_SET_TAGS:
             if self.pending_update is None:
                 debug(f'element definition/setting happening outside property definition/setting')
@@ -151,6 +161,19 @@ class INDIStreamParser:
                 })
             if 'label' in tag_attributes:
                 self.current_indi_element['label'] = tag_attributes['label']
+        elif tag_name == self.PROPERTY_DEL_TAG:
+            self.pending_update = {
+                'action': INDIActions.PROPERTY_DEL,
+                'device': tag_attributes['device'],
+            }
+            for optional_attr in self.OPTIONAL_PROPERTY_DEL_ATTRS:
+                if optional_attr in tag_attributes:
+                    if optional_attr == 'timestamp':
+                        self.pending_update[optional_attr] = parse_iso_to_datetime(tag_attributes[optional_attr])
+                    else:
+                        self.pending_update[optional_attr] = tag_attributes[optional_attr]
+        else:
+            debug(f"Unhandled tag <{tag_name}> opened")
 
     # @_reset_on_bad_input
     def end_element_handler(self, tag_name):
@@ -178,11 +201,13 @@ class INDIStreamParser:
                 element['value'] = parse_string_into_enum(contents, PropertyState)
             else:
                 element['value'] = contents
-            self.pending_update['elements'].append(element)
+            self.pending_update['property']['elements'][element['name']] = element
             self.current_indi_element = None
-        elif tag_name in self.PROPERTY_DEF_TAGS or tag_name in self.PROPERTY_SET_TAGS:
+        elif tag_name in self.PROPERTY_DEF_TAGS or tag_name in self.PROPERTY_SET_TAGS or tag_name == self.PROPERTY_DEL_TAG:
             self.update_queue.put_nowait(self.pending_update)
             self.pending_update = None
+        else:
+            debug(f"Unhandled tag <{tag_name}> closed")
 
     def character_data_handler(self, data):
         self.accumulated_chardata += data

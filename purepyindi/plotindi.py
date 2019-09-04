@@ -6,24 +6,35 @@ import time
 import sys
 import datetime
 
-times, values = None, None
+DEFAULT_MINUTES = 5
 
-def print_changes(element):
+times, values, n_minutes, ax, line = None, None, None, None, None
+
+def update_plot():
+    global times, values, n_minutes, ax, line
+    current_time = times[-1]
+    n_minutes_ago = current_time - datetime.timedelta(minutes=n_minutes)
+    plot_limits = n_minutes_ago, current_time
+    line.set_data(times, values)
+    ax.relim()
+    ax.set_xlim(*plot_limits)
+    ax.autoscale_view()
+    plt.draw()
+    plt.pause(0.05)
+
+def print_and_plot_changes(element):
     global times, values
     element_name = element.name
     property_name = element.property.name
     device_name = element.property.device.name
     print(f"{device_name}.{property_name}.{element_name}={element.value}")
-    times.append(datetime.datetime.now())
+    current_time = datetime.datetime.now()
+    times.append(current_time)
     values.append(element.value)
-    plt.gca().lines[0].set_xdata(times)
-    plt.gca().lines[0].set_ydata(values)
-    plt.gca().relim()
-    plt.gca().autoscale_view()
-    plt.pause(0.05)
+    update_plot()
 
 def main():
-    global times, values
+    global times, values, n_minutes, ax, line
     import argparse
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
@@ -42,14 +53,22 @@ def main():
         "-p", "--port",
         help=f"Specify port to connect to (default: {DEFAULT_PORT})",
         nargs="?",
+        type=int,
         default=DEFAULT_PORT,
+    )
+    parser.add_argument(
+        "-m", "--minutes",
+        help=f"Minutes of data to show (default: {DEFAULT_MINUTES})",
+        nargs="?",
+        type=float,
+        default=DEFAULT_MINUTES,
     )
     args = parser.parse_args()
     if args.help:
         parser.print_help()
         sys.exit(1)
-
     logging.basicConfig(level=logging.WARN)
+    n_minutes = args.minutes
     c = INDIClient(args.host, args.port)
     c.start()
     print(f"waiting to initialize {args.identifier}...", end='')
@@ -64,14 +83,16 @@ def main():
             f"{args.identifier} is not of kind 'INDIPropertyKind.NUMBER' (got {the_property.kind})"
         )
     elem = the_property.elements[element_name]
-    elem.add_watcher(print_changes)
     print(f"Added watcher to {elem}")
     plt.ion()
-    plt.xlabel('time')
-    plt.ylabel(args.identifier)
+    fig, ax = plt.subplots()
+    ax.set_xlabel('time')
+    ax.set_ylabel(args.identifier)
     times = [datetime.datetime.now()]
     values = [elem.value]
-    plt.plot_date(times, values, '-')
+    (line,) = ax.plot_date(times, values, '-')
+    elem.add_watcher(print_and_plot_changes)
+    update_plot()
     plt.show(block=True)
 
 if __name__ == "__main__":
