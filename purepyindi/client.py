@@ -107,22 +107,30 @@ class INDIClient:
             self.devices[device_name] = device
         return device
     def apply_update(self, update):
+        '''
+        Applies an update dict from the `INDIStreamParser`, returns
+        whether the update actually changed the state of the world
+        in INDIClient. Useful to drop updates that aren't, properly
+        speaking, updating anything.
+        '''
         device_name = update['device']
         if update['action'] is INDIActions.PROPERTY_DEF:
             the_device = self.get_or_create_device(device_name)
-            the_device.apply_update(update)
+            did_anything_change = the_device.apply_update(update)
             debug("Finished apply_update on device")
         elif update['action'] is INDIActions.PROPERTY_SET:
             if device_name in self.devices:
-                self.devices[device_name].apply_update(update)
+                did_anything_change = self.devices[device_name].apply_update(update)
             else:
                 debug(f"got an update for a property "
                       f"on a device we never saw defined: {update}")
                 return False
-        for watcher in self.watchers:
-            watcher(update)
-        return True
-    def mutate(self, device, property, element, value):
+        if did_anything_change:
+            for watcher in self.watchers:
+                watcher(update)
+            return True
+        return False
+    def mutate(self, device, property, element):
         mutation = {
             'action': INDIActions.PROPERTY_NEW,
             'device': device.name,
@@ -214,20 +222,23 @@ class Device:
         if update['action'] is INDIActions.PROPERTY_DEF:
             if property_name in self.properties:
                 debug("WARNING: attempt to redefine existing property, ignoring")
-                return
+                return False
             the_prop = self.create_property(property_name, update)
-            the_prop.apply_update(update)
+            did_anything_change = the_prop.apply_update(update)
             debug("Finished apply_update on property")
         elif update['action'] is INDIActions.PROPERTY_SET:
             if property_name in self.properties:
-                self.properties[property_name].apply_update(update)
+                did_anything_change = self.properties[property_name].apply_update(update)
             else:
+                did_anything_change = False
                 debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
         else:
             raise RuntimeError("Unknown INDIAction:", update['action'])
-        for watcher in self.watchers:
-            watcher(update)
+        if did_anything_change:
+            for watcher in self.watchers:
+                watcher(update)
+        return did_anything_change
     def create_property(self, property_name, update):
         kind = update['kind']
         if kind == INDIPropertyKind.NUMBER:
@@ -240,8 +251,8 @@ class Device:
             prop = LightProperty(property_name, self)
         self.properties[property_name] = prop
         return prop
-    def mutate(self, property, element, value):
-        self.client_instance.mutate(self, property, element, value)
+    def mutate(self, property, element):
+        self.client_instance.mutate(self, property, element)
     def to_dict(self):
         return {name: prop.to_dict() for name, prop in self.properties.items()}
 
@@ -264,11 +275,17 @@ class Element:
             'label': self.label,
         }
     def _update_from_server(self, element_update):
-        self._value = element_update['value']
-        if 'label' in element_update:
+        did_anything_change = False
+        if element_update['value'] != self._value:
+            self._value = element_update['value']
+            did_anything_change = True
+        if 'label' in element_update and element_update['label'] != self._label:
             self._label = element_update['label']
-        for watcher in self.watchers:
-            watcher(self)
+            did_anything_change = True
+        if did_anything_change:
+            for watcher in self.watchers:
+                watcher(self)
+        return did_anything_change
     @property
     def label(self):
         return self._label if self._label is not None else self.name
@@ -284,7 +301,7 @@ class Element:
                 f"{self.property.name}.{self.name} "
                 f"to {repr(new_value)}"
             )
-        self.property.mutate(self.name, new_value)
+        self.property.mutate(self)
 
 class TextElement(Element):
     pass
@@ -302,11 +319,20 @@ class NumberElement(Element):
         result['step'] = self.step
         return result
     def _update_from_server(self, element_update):
-        super()._update_from_server(element_update)
-        self.format = element_update.get('format', self.format)
-        self.min = element_update.get('min', self.min)
-        self.max = element_update.get('max', self.max)
-        self.step = element_update.get('step', self.step)
+        did_anything_change = super()._update_from_server(element_update)
+        if 'format' in element_update and element_update['format'] != self.format:
+            self.format = element_update['format']
+            did_anything_change = True
+        if 'min' in element_update and element_update['min'] != self.min:
+            self.min = element_update['min']
+            did_anything_change = True
+        if 'max' in element_update and element_update['max'] != self.max:
+            self.max = element_update['max']
+            did_anything_change = True
+        if 'step' in element_update and element_update['step'] != self.step:
+            self.step = element_update['step']
+            did_anything_change = True
+        return did_anything_change
 
 class LightElement(Element):
     @property
@@ -321,17 +347,21 @@ class SwitchElement(Element):
     def to_dict(self):
         result = super().to_dict()
         result['rule'] = self.rule.value
+        result['value'] = self.value.value
         return result
     def _update_from_server(self, element_update):
-        super()._update_from_server(element_update)
-        self.rule = element_update.get('rule', self.rule)
+        did_anything_change = super()._update_from_server(element_update)
+        if 'rule' in element_update and element_update['rule'] != self.rule:
+            self.rule = element_update['rule']
+            did_anything_change = True
+        return did_anything_change
     @property
     def value(self):
         return self._value
     @value.setter
     def value(self, new_value):
         if new_value in SwitchState:
-            super().value = new_value
+            return Element.value.fset(self, new_value)
         else:
             raise ValueError("Valid switch states are attributes of the SwitchState enum")
 
@@ -383,25 +413,43 @@ class Property:
             property_dict[element] = self.elements[element].to_dict()
         return property_dict
     def apply_update(self, update):
-        self.timestamp = update.get('timestamp', self.timestamp)
-        self._label = update.get('label', self._label)
-        self._perm = update.get('perm', self._perm)
-        self.timeout = update.get('timeout', self.timeout)
-        self.group = update.get('group', self.group)
-        self.timeout = update.get('timeout', self.timeout)
-        self._state = update.get('state', self._state)
+        did_anything_change = False
+
+        if 'timestamp' in update and update['timestamp'] != self.timestamp:
+            self.timestamp = update['timestamp']
+            did_anything_change = True
+        if 'label' in update and update['label'] != self._label:
+            self._label = update['label']
+            did_anything_change = True
+        if 'perm' in update and update['perm'] != self._perm:
+            self._perm = update['perm']
+            did_anything_change = True
+        if 'timeout' in update and update['timeout'] != self.timeout:
+            self.timeout = update['timeout']
+            did_anything_change = True
+        if 'group' in update and update['group'] != self.group:
+            self.group = update['group']
+            did_anything_change = True
+        if 'state' in update and update['state'] != self._state:
+            self._state = update['state']
+            did_anything_change = True
+
         for element_update in update['elements']:
             el = self.get_or_create_element(element_update['name'])
-            el._update_from_server(element_update)
-        for watcher in self.watchers:
-            watcher(update)
+            did_element_change = el._update_from_server(element_update)
+            assert did_element_change in (True, False), "Missing boolean return from Element._update_from_server"
+            did_anything_change = did_element_change or did_anything_change
+        if did_anything_change:
+            for watcher in self.watchers:
+                watcher(update)
+        return did_anything_change
     def get_or_create_element(self, element_name):
         if not element_name in self.elements:
             self.elements[element_name] = self.ELEMENT_CLASS(element_name, self)
         return self.elements[element_name]
-    def mutate(self, element_name, new_value):
+    def mutate(self, element):
         self._state = PropertyState.BUSY
-        self.device.mutate(self, element_name, new_value)
+        self.device.mutate(self, element)
 
 class TextProperty(Property):
     ELEMENT_CLASS = TextElement

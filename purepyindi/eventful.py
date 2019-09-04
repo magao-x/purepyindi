@@ -58,8 +58,8 @@ class AsyncINDIClient(INDIClient):
             while not self._inbound_queue.empty():
                 update = await self._inbound_queue.get()
                 debug(f"Got update:\n{pformat(update)}")
-                did_apply = self.apply_update(update)
-                if not did_apply:
+                did_anything_change = self.apply_update(update)
+                if not did_anything_change:
                     continue
                 for watcher in self.async_watchers:
                     await watcher(update)

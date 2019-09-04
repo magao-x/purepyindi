@@ -18,6 +18,17 @@ def test_number_update():
     pprint(client.devices['test'].to_dict())
     assert client.devices['test'].properties['prop'].elements['value'].value == 0
 
+def test_did_anything_change():
+    client = INDIClient(None, None)
+    did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
+    assert did_anything_change == True
+    did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
+    assert did_anything_change == False
+    did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
+    assert did_anything_change == True
+    did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
+    assert did_anything_change == False
+
 def test_start_stop_start_stop():
     with mock.patch('socket.socket') as mock_socket:
         mock_socket.connect.return_value = True
