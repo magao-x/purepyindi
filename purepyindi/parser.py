@@ -194,8 +194,8 @@ class INDIStreamParser:
                 try:
                     parsed_number = float(contents)
                 except ValueError:
-                    warn(f"Coudn't parse {contents} as a number for {self.pending_update['device']}.{self.pending_update['name']}.{element['name']}")
-                    parsed_number = float('nan')
+                    warn(f"Coudn't parse {contents} as a number for {self.pending_update['device']}.{self.pending_update['property']['name']}.{element['name']}")
+                    parsed_number = None
                 element['value'] = parsed_number
             elif self.pending_update['property']['kind'] == INDIPropertyKind.SWITCH:
                 element['value'] = parse_string_into_enum(contents, SwitchState)
