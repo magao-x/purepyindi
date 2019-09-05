@@ -10,7 +10,7 @@ import traceback
 def watcher(update):
     for elemname in update['property']['elements']:
         elem = update['property']['elements'][elemname]
-        print(f"{update['device']}.{update['name']}.{elemname}={elem['value']} ({update['property']['state'].value})")
+        print(f"{update['device']}.{update['property']['name']}.{elemname}={elem['value']} ({update['property']['state'].value})")
 
 def main():
     import argparse

@@ -471,6 +471,17 @@ class NumberProperty(Property):
 class SwitchProperty(Property):
     ELEMENT_CLASS = SwitchElement
     KIND = INDIPropertyKind.SWITCH
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rule = None
+    def apply_update(self, update):
+        did_anything_change = False
+        prop = update['property']
+        if 'rule' in prop and prop['rule'] != self.rule:
+            self.rule = prop['rule']
+            did_anything_change = True
+        did_super_change = super().apply_update(update)
+        return did_super_change or did_anything_change
 
 class LightProperty(Property):
     ELEMENT_CLASS = LightElement
