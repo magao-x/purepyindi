@@ -248,7 +248,6 @@ class Device:
             'properties': {name: prop.to_dict() for name, prop in self.properties.items()},
         }
 
-
 class Element:
     def __init__(self, name, parent_property):
         self.property = parent_property
@@ -334,18 +333,10 @@ class LightElement(Element):
         raise ValueError("Clients can't change lights")
 
 class SwitchElement(Element):
-    rule = SwitchRule.ANY_OF_MANY
     def to_dict(self):
         result = super().to_dict()
-        result['rule'] = self.rule.value
         result['value'] = self.value.value
         return result
-    def _update_from_server(self, element_update):
-        did_anything_change = super()._update_from_server(element_update)
-        if 'rule' in element_update and element_update['rule'] != self.rule:
-            self.rule = element_update['rule']
-            did_anything_change = True
-        return did_anything_change
     @property
     def value(self):
         return self._value
@@ -482,6 +473,10 @@ class SwitchProperty(Property):
             did_anything_change = True
         did_super_change = super().apply_update(update)
         return did_super_change or did_anything_change
+    def to_dict(self):
+        the_dict = super().to_dict()
+        the_dict['rule'] = self.rule.value
+        return the_dict
 
 class LightProperty(Property):
     ELEMENT_CLASS = LightElement
