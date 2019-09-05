@@ -17,21 +17,21 @@ def format_datetime_as_iso(dt):
     return dt.astimezone(datetime.timezone.utc).strftime(ISO_TIMESTAMP_FORMAT)
 
 def construct_property_new(mutation, timestamp):
-    root_tag, sub_tag = KINDS_TO_NEW_TAG_NAMES[mutation['kind']]
+    root_tag, sub_tag = KINDS_TO_NEW_TAG_NAMES[mutation['property']['kind']]
     xml_doc = ET.Element(root_tag, attrib={
         'device': mutation['device'],
-        'name': mutation['name'],
+        'name': mutation['property']['name'],
         'timestamp': format_datetime_as_iso(timestamp),
     })
     for element in mutation['property']['elements'].values():
         sub = ET.SubElement(xml_doc, sub_tag, attrib={'name': element['name']})
-        if mutation['kind'] == INDIPropertyKind.NUMBER:
+        if mutation['property']['kind'] == INDIPropertyKind.NUMBER:
             sub.text = (
                 element['format'] % (element['value'],)
                 if element['value'] is not None
                 else ''
             )
-        elif mutation['kind'] == INDIPropertyKind.SWITCH:
+        elif mutation['property']['kind'] == INDIPropertyKind.SWITCH:
             sub.text = element['value'].value
         else:
             sub.text = element['value']

@@ -12,6 +12,7 @@ from .constants import (
     SwitchState,
     parse_string_into_enum,
 )
+from pprint import pformat
 from .log import debug, info, warn, error, critical
 
 def parse_iso_to_datetime(timestamp):
@@ -104,16 +105,16 @@ class INDIStreamParser:
                       f'{self.pending_update}')
             self.pending_update = {
                 'action': INDIActions.PROPERTY_DEF,
-                'kind': self.PROPERTY_DEF_TAGS[tag_name],
                 'device': tag_attributes['device'],
-                'name': tag_attributes['name'],
                 'property': {
+                    'kind': self.PROPERTY_DEF_TAGS[tag_name],
+                    'name': tag_attributes['name'],
                     'elements': {},
                     'perm': parse_string_into_enum(tag_attributes['perm'], PropertyPerm),
                     'state': parse_string_into_enum(tag_attributes['state'], PropertyState)
                 }
             }
-            if self.pending_update['kind'] == INDIPropertyKind.SWITCH:
+            if self.pending_update['property']['kind'] == INDIPropertyKind.SWITCH:
                 self.pending_update['property']['rule'] = parse_string_into_enum(tag_attributes['rule'], SwitchRule)
             for optional_attr in self.OPTIONAL_PROPERTY_DEF_ATTRS:
                 if optional_attr in tag_attributes:
@@ -129,10 +130,11 @@ class INDIStreamParser:
                       f'{self.pending_update}')
             self.pending_update = {
                 'action': INDIActions.PROPERTY_SET,
-                'kind': self.PROPERTY_SET_TAGS[tag_name],
                 'device': tag_attributes['device'],
-                'name': tag_attributes['name'],
                 'property': {
+                    'name': tag_attributes['name'],
+                    'kind': self.PROPERTY_SET_TAGS[tag_name],
+                    'name': tag_attributes['name'],
                     'elements': {},
                 }
             }
@@ -188,22 +190,24 @@ class INDIStreamParser:
                 # provided for in INDI, but have their uses.
                 # They are represented by `None` in the Python API.
                 element['value'] = None
-            elif self.pending_update['kind'] == INDIPropertyKind.NUMBER:
+            elif self.pending_update['property']['kind'] == INDIPropertyKind.NUMBER:
                 try:
                     parsed_number = float(contents)
                 except ValueError:
                     warn(f"Coudn't parse {contents} as a number for {self.pending_update['device']}.{self.pending_update['name']}.{element['name']}")
                     parsed_number = float('nan')
                 element['value'] = parsed_number
-            elif self.pending_update['kind'] == INDIPropertyKind.SWITCH:
+            elif self.pending_update['property']['kind'] == INDIPropertyKind.SWITCH:
                 element['value'] = parse_string_into_enum(contents, SwitchState)
-            elif self.pending_update['kind'] == INDIPropertyKind.LIGHT:
+            elif self.pending_update['property']['kind'] == INDIPropertyKind.LIGHT:
                 element['value'] = parse_string_into_enum(contents, PropertyState)
             else:
                 element['value'] = contents
             self.pending_update['property']['elements'][element['name']] = element
             self.current_indi_element = None
         elif tag_name in self.PROPERTY_DEF_TAGS or tag_name in self.PROPERTY_SET_TAGS or tag_name == self.PROPERTY_DEL_TAG:
+            debug("Placing update in queue:")
+            debug(pformat(self.pending_update))
             self.update_queue.put_nowait(self.pending_update)
             self.pending_update = None
         else:

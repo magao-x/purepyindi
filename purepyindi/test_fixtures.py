@@ -15,10 +15,10 @@ DEF_NUMBER_PROP = b'''
 '''
 DEF_NUMBER_UPDATE = {
     'action': INDIActions.PROPERTY_DEF,
-    'kind': INDIPropertyKind.NUMBER,
     'device': 'test',
-    'name': 'prop',
     'property': {
+        'name': 'prop',
+        'kind': INDIPropertyKind.NUMBER,
         'elements': {
             'value': {
                 'format': '%g',
@@ -45,10 +45,10 @@ SET_NUMBER_PROP = b'''
 
 SET_NUMBER_UPDATE = {
     'action': INDIActions.PROPERTY_SET,
-    'kind': INDIPropertyKind.NUMBER,
     'device': 'test',
-    'name': 'prop',
     'property': {
+        'name': 'prop',
+        'kind': INDIPropertyKind.NUMBER,
         'elements': {
             'value': {'name': 'value', 'value': 1.0}
         },
@@ -59,10 +59,10 @@ SET_NUMBER_UPDATE = {
 
 NEW_NUMBER_MUTATION = {
     'action': INDIActions.PROPERTY_NEW,
-    'kind': INDIPropertyKind.NUMBER,
     'device': 'test',
-    'name': 'prop',
     'property': {
+        'name': 'prop',
+        'kind': INDIPropertyKind.NUMBER,
         'elements': {
             'value': {
                 'format': '%g',

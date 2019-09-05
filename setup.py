@@ -28,8 +28,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            f'ipyindi={PROJECT}.ipyindi:main',
-            f'plotINDI={PROJECT}.plotindi:main',
+            f'ipyINDI={PROJECT}.ipyINDI:main',
+            f'plotINDI={PROJECT}.plotINDI:main',
+            f'jsonINDI={PROJECT}.jsonINDI:main',
             f'indiwatcher={PROJECT}.indiwatcher:main',
         ],
     },

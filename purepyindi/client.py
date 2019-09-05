@@ -201,13 +201,14 @@ class Device:
     def remove_watcher(self, watcher_callback):
         self.watchers.remove(watcher_callback)
     def apply_update(self, update):
-        property_name = update['name']
+        property_name = update['property']['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
             if property_name in self.properties:
                 debug("WARNING: attempt to redefine existing property, ignoring")
                 return False
             the_prop = self.create_property(property_name, update)
-            did_anything_change = the_prop.apply_update(update)
+            did_anything_change = True
+            the_prop.apply_update(update)
             debug("Finished apply_update on property")
         elif update['action'] in (INDIActions.PROPERTY_SET, INDIActions.PROPERTY_NEW):
             if property_name in self.properties:
@@ -217,7 +218,7 @@ class Device:
                 debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
         elif update['action'] is INDIActions.PROPERTY_DEL:
-            if update['name'] in self.properties:
+            if update['property']['name'] in self.properties:
                 # delete one property
                 del self.properties[update['name']]
                 did_anything_change = True
@@ -228,7 +229,7 @@ class Device:
                 watcher(update)
         return did_anything_change
     def create_property(self, property_name, update):
-        kind = update['kind']
+        kind = update['property']['kind']
         if kind == INDIPropertyKind.NUMBER:
             prop = NumberProperty(property_name, self)
         elif kind == INDIPropertyKind.TEXT:
@@ -242,7 +243,10 @@ class Device:
     def mutate(self, update):
         self.client_instance.mutate(update)
     def to_dict(self):
-        return {name: prop.to_dict() for name, prop in self.properties.items()}
+        return {
+            'name': self.name,
+            'properties': {name: prop.to_dict() for name, prop in self.properties.items()},
+        }
 
 
 class Element:
@@ -382,6 +386,7 @@ class Property:
         return self._perm if self._perm is not None else PropertyPerm.READ_ONLY
     def to_dict(self):
         property_dict = {
+            'name': self.name,
             'timestamp': format_datetime_as_iso(self.timestamp),
             'label': self._label,
             'perm': self.perm.value,
@@ -433,11 +438,11 @@ class Property:
     def mutate(self, element, value):
         mutation = {
             'action': INDIActions.PROPERTY_NEW,
-            'kind': self.KIND,
             'device': self.device.name,
-            'name': self.name,
             'timestamp': datetime.datetime.utcnow().isoformat(),
             'property': {
+                'name': self.name,
+                'kind': self.KIND,
                 'elements': {},
                 'state': PropertyState.BUSY
             }
@@ -446,7 +451,7 @@ class Property:
         # > vectors, or may send just the members that change
         # > for other types.
         #    - INDI Whitepaper, page 4
-        if mutation['kind'] in (INDIPropertyKind.TEXT, INDIPropertyKind.NUMBER):
+        if mutation['property']['kind'] in (INDIPropertyKind.TEXT, INDIPropertyKind.NUMBER):
             for element_key in self.elements:
                 mutation['property']['elements'][element_key] = self.elements[element_key].to_dict()
         else:

@@ -74,7 +74,7 @@ def main():
     print(f"waiting to initialize {args.identifier}...", end='')
     while args.identifier not in c:
         time.sleep(1)
-        print('.')
+        print('.', end='')
     print()
     device_name, property_name, element_name = args.identifier.split('.')
     the_property = c.devices[device_name].properties[property_name]
