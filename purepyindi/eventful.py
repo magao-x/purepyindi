@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pprint import pformat
 from .client import INDIClient
 from .constants import *
@@ -12,6 +13,26 @@ class AsyncINDIClient(INDIClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.async_watchers = set()
+    async def wait_for_properties(self, properties, timeout=None):
+        '''
+        Supply an iterable of ``device_name.property_name`` strings
+        and optionally a `timeout` in seconds, and this function will block
+        until they are all available. Returns number of seconds it took, in case you're curious.
+        '''
+        ready = False
+        started = time.time()
+        elapsed = 0
+        while not ready:
+            has_all = self.has_properties(properties)
+            if has_all:
+                ready = True
+            else:
+                elapsed = time.time() - started
+                if timeout is None or elapsed < timeout:
+                    await asyncio.sleep(1)
+                else:
+                    raise TimeoutError(f"Timed out waiting for properties: {properties}")
+        return time.time() - started
     def add_async_watcher(self, watcher_callback):
         self.async_watchers.add(watcher_callback)
     def remove_async_watcher(self, watcher_callback):
