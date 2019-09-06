@@ -9,6 +9,7 @@ import asyncio
 import threading
 import datetime
 import socket
+import time
 import queue
 from .constants import (
     ConnectionStatus,
@@ -38,6 +39,36 @@ class INDIClient:
         self.devices = {}
         self._writer = self._reader = None
         self.watchers = set()
+    def wait_for_properties(self, properties, timeout=None):
+        '''
+        Supply an iterable of ``device_name.property_name`` strings
+        and optionally a `timeout` in seconds, and this function will block
+        until they are all available. Returns number of seconds it took, in case you're curious.
+        '''
+        property_specs = [property_spec.split('.') for property_spec in properties]
+        if not all(map(lambda x: x == 2, map(len, property_specs))):
+            raise ValueError("The `properties` arg must be an iterable of strings in the format ``device_name.property_name``")
+        ready = False
+        started = time.time()
+        elapsed = 0
+        while not ready:
+            missing_any = False
+            for device_name, property_name in property_specs:
+                if device_name not in self.devices:
+                    missing_any = True
+                else:
+                    if property_name not in self.devices[device_name].properties:
+                        missing_any = True
+            if not missing_any:
+                ready = True
+            else:
+                elapsed = time.time() - started
+                print(f'{elapsed} sec elapsed, timeout is {timeout}')
+                if timeout is None or elapsed < timeout:
+                    time.sleep(1)
+                else:
+                    raise TimeoutError(f"Timed out waiting for properties: {properties}")
+        return time.time() - started
     def add_watcher(self, watcher_callback):
         self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):

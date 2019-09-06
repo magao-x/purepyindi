@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 from unittest import mock
 from .constants import *
@@ -26,6 +27,18 @@ def test_delete_device():
     client.apply_update(DEL_PROPERTY_UPDATE)
     assert 'test' not in client.devices
 
+def test_wait_for_properties_timeout():
+    client = INDIClient(None, None)
+    with pytest.raises(TimeoutError):
+        client.wait_for_properties(['test.prop'], timeout=0)
+    client.apply_update(DEF_NUMBER_UPDATE)
+    client.wait_for_properties(['test.prop'], timeout=0)
+
+def test_wait_for_properties_argformat():
+    client = INDIClient(None, None)
+    with pytest.raises(ValueError):
+        client.wait_for_properties(['test.prop.element'], timeout=0)
+
 def test_did_anything_change():
     client = INDIClient(None, None)
     did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
@@ -51,3 +64,4 @@ def test_start_stop_start_stop():
         client.stop()
         client.start()
         client.stop()
+
