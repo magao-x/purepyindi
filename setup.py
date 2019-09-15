@@ -10,6 +10,17 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 with open(path.join(HERE, PROJECT, 'VERSION'), encoding='utf-8') as f:
     VERSION = f.read().strip()
 
+extras = {
+    'dev': ['pytest'],
+    'ipyINDI': ['IPython'],
+    'plotINDI': ['matplotlib'],
+}
+all_deps = set()
+for _, deps in extras.items():
+    for dep in deps:
+        all_deps.add(dep)
+extras['all'] = list(all_deps)
+
 setup(
     name=PROJECT,
     version=VERSION,
@@ -21,17 +32,13 @@ setup(
     package_data={  # Optional
         PROJECT: ['VERSION'],
     },
-    extras_require={
-        'dev': ['pytest'],
-        'plotINDI': ['IPython'],
-        'ipyindi': ['matplotlib'],
-    },
+    extras_require=extras,
     entry_points={
         'console_scripts': [
             f'ipyINDI={PROJECT}.ipyINDI:main',
             f'plotINDI={PROJECT}.plotINDI:main',
             f'jsonINDI={PROJECT}.jsonINDI:main',
-            f'indiwatcher={PROJECT}.indiwatcher:main',
+            f'watchINDI={PROJECT}.watchINDI:main',
         ],
     },
     project_urls={  # Optional

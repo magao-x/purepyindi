@@ -1,0 +1,16 @@
+{
+    "def": {
+        "deviceName": {
+            "name": "deviceName",
+            "properties": {
+                "propName": {
+                    "name": "propName",
+                    "kind": "swt",
+                    "elements": {
+                        "eltName": {"name": "eltName", "value": "On"}
+                    }
+                }
+            }
+        }
+    }
+}
