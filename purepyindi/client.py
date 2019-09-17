@@ -223,6 +223,58 @@ class INDIClient:
     def __setitem__(self, key, value):
         element = self.lookup_element(key)
         element.value = value
+    def wait_for_state(self, state_dict, wait_for_properties=False, timeout=None):
+        required_properties = set()
+        state_reached = state_dict.copy()
+        for key, value in state_reached.items():
+            state_reached[key] = False
+            required_properties.add(key.rsplit('.', 1)[0])
+        if wait_for_properties:
+            debug(f"Waiting for properties to become available: {required_properties}")
+            self.wait_for_properties(required_properties, timeout=timeout)
+        def watcher_closure(the_prop):
+            print(f'in watcher_closure for {the_prop.identifier}')
+            if the_prop.state is PropertyState.BUSY:
+                return
+            for the_elem in the_prop.elements.values():
+                ident = the_elem.identifier
+                if ident not in state_dict:
+                    print(f'no {ident} in {state_dict}')
+                    continue
+                value = state_dict[ident]['value']
+                if 'test' in state_dict[ident]:
+                    target_reached = state_dict[ident]['test'](the_elem.value, value)
+                else:
+                    target_reached = value == the_elem.value
+                state_reached[ident] = target_reached
+        for key, value in state_dict.items():
+            element = self.lookup_element(key)
+            element.property.add_watcher(watcher_closure)
+            # initial evaluation to handle case where we're already at
+            # requested state
+            watcher_closure(element.property)
+            element.value = value['value']
+            debug(f"new element value: {key}={value['value']}")
+            debug(f"Added watcher to element {element.identifier}")
+        ready = False
+        started = time.time()
+        elapsed = 0
+        while not ready:
+            if all(state_reached.values()):
+                ready = True
+                break
+            else:
+                pprint(state_reached)
+            elapsed = time.time() - started
+            print(f'{elapsed} sec elapsed, timeout is {timeout}')
+            if timeout is None or elapsed < timeout:
+                time.sleep(1)
+            else:
+                raise TimeoutError(f"Timed out waiting for state: {state_dict}")
+
+        return time.time() - started
+
+
 
 class Device:
     def __init__(self, name, client_instance):
@@ -230,6 +282,9 @@ class Device:
         self.name = name
         self.properties = {}
         self.watchers = set()
+    @property
+    def identifier(self):
+        return f'{self.name}'
     def add_watcher(self, watcher_callback):
         self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
@@ -260,7 +315,7 @@ class Device:
             raise RuntimeError("Unknown INDIAction:", update['action'])
         if did_anything_change:
             for watcher in self.watchers:
-                watcher(update)
+                watcher(self)
         return did_anything_change
     def create_property(self, property_name, update):
         kind = update['property']['kind']
@@ -326,6 +381,9 @@ class Element:
                 f"to {repr(new_value)}"
             )
         self.property.mutate(self, new_value)
+    @property
+    def identifier(self):
+        return f'{self.property.device.name}.{self.property.name}.{self.name}'
 
 class TextElement(Element):
     pass
@@ -409,6 +467,9 @@ class Property:
     @property
     def perm(self):
         return self._perm if self._perm is not None else PropertyPerm.READ_ONLY
+    @property
+    def identifier(self):
+        return f'{self.device.name}.{self.name}'
     def to_dict(self):
         property_dict = {
             'name': self.name,
@@ -454,7 +515,7 @@ class Property:
             did_anything_change = did_element_change or did_anything_change
         if did_anything_change:
             for watcher in self.watchers:
-                watcher(update)
+                watcher(self)
         return did_anything_change
     def get_or_create_element(self, element_name):
         if not element_name in self.elements:

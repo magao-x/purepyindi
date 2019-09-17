@@ -72,3 +72,19 @@ def my_watcher(element):
 
 c.devices['devicename'].properties['propertyname'].elements['elementname'].add_watcher(my_watcher)
 ```
+
+## Wait for a desired state
+
+```
+targ = 50
+c.wait_for_state({
+    'timeSeriesSimulator.gizmo_0000.current': {
+        'value': targ,
+        'test': lambda current, value: abs(current - value) < tolerance,
+    },
+    'timeSeriesSimulator.gizmo_0000.target': {'value': targ},
+    'timeSeriesSimulator.function.sin': {'value': SwitchState.ON},
+})
+```
+
+The `'test'` key lets you handle approximate equality in a customizable way. The callable gets the `value` from the sibling key in that dict, and the `current` value from incoming INDI messages that update the referenced element.
