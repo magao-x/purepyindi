@@ -66,7 +66,7 @@ class INDIClient:
                 ready = True
             else:
                 elapsed = time.time() - started
-                print(f'{elapsed} sec elapsed, timeout is {timeout}')
+                debug(f'{elapsed} sec elapsed, timeout is {timeout}')
                 if timeout is None or elapsed < timeout:
                     time.sleep(1)
                 else:
@@ -233,13 +233,13 @@ class INDIClient:
             debug(f"Waiting for properties to become available: {required_properties}")
             self.wait_for_properties(required_properties, timeout=timeout)
         def watcher_closure(the_prop):
-            print(f'in watcher_closure for {the_prop.identifier}')
+            debug(f'in watcher_closure for {the_prop.identifier}')
             if the_prop.state is PropertyState.BUSY:
                 return
             for the_elem in the_prop.elements.values():
                 ident = the_elem.identifier
                 if ident not in state_dict:
-                    print(f'no {ident} in {state_dict}')
+                    debug(f'no {ident} in {state_dict}')
                     continue
                 value = state_dict[ident]['value']
                 if 'test' in state_dict[ident]:
@@ -264,14 +264,16 @@ class INDIClient:
                 ready = True
                 break
             else:
-                pprint(state_reached)
+                debug(f'Still waiting on wait_for_state: {pformat(state_reached)}')
             elapsed = time.time() - started
-            print(f'{elapsed} sec elapsed, timeout is {timeout}')
+            debug(f'{elapsed} sec elapsed, timeout is {timeout}')
             if timeout is None or elapsed < timeout:
                 time.sleep(1)
             else:
                 raise TimeoutError(f"Timed out waiting for state: {state_dict}")
-
+        for propstr in required_properties:
+            devname, propname = propstr.split('.', 1)
+            self.devices[devname].properties[propname].remove_watcher(watcher_closure)
         return time.time() - started
 
 
