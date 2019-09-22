@@ -78,7 +78,7 @@ NEW_NUMBER_MUTATION = {
 
 NEW_NUMBER_TIMESTAMP = datetime.datetime(2019, 8, 13, 22, 45, 17, 867692, tzinfo=datetime.timezone.utc)
 
-NEW_NUMBER_MESSAGE = b'''<newNumberVector device="test" name="prop" timestamp="2019-08-13T22:45:17.867692Z"><oneNumber name="value">0</oneNumber></newNumberVector>\n'''
+NEW_NUMBER_MESSAGE = b'''<newNumberVector device="test" name="prop" timestamp="2019-08-13T22:45:17.867692Z"><oneNumber name="value">0.0</oneNumber></newNumberVector>\n'''
 
 DEL_PROPERTY_MESSAGE = b'''<delProperty device="test" timestamp="2019-09-03T21:45:04.031508Z">\r\n</delProperty>'''
 
