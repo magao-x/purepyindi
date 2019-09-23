@@ -399,9 +399,6 @@ class Element:
             self._label = element_update['label']
             did_anything_change = True
         if did_anything_change:
-            # TODO Once INDI messages reliably update their timestamps,
-            # we should use those. See https://github.com/magao-x/MagAOX/issues/38
-            # timestamp = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
             self.history.add(self.property.timestamp, self._value)
         for watcher in self.watchers:
             watcher(self, did_anything_change)
