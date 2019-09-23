@@ -33,6 +33,8 @@ class AsyncINDIClient(INDIClient):
                 else:
                     raise TimeoutError(f"Timed out waiting for properties: {properties}")
         return time.time() - started
+    async def wait_for_state(self, state_dict, wait_for_properties=False, timeout=None):
+        raise NotImplementedError("Still needs async implementation!")
     def add_async_watcher(self, watcher_callback):
         self.async_watchers.add(watcher_callback)
     def remove_async_watcher(self, watcher_callback):
@@ -81,10 +83,8 @@ class AsyncINDIClient(INDIClient):
                 update = await self._inbound_queue.get()
                 debug(f"Got update:\n{pformat(update)}")
                 did_anything_change = self.apply_update(update)
-                if not did_anything_change:
-                    continue
                 for watcher in self.async_watchers:
-                    await watcher(update)
+                    await watcher(update, did_anything_change)
     async def _handle_outbound(self, writer_handle):
         while not self.status == ConnectionStatus.STOPPED:
             try:

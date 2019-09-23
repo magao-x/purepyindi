@@ -22,13 +22,14 @@ def update_plot():
     plt.draw()
     plt.pause(0.05)
 
-def print_and_plot_changes(element):
+def print_and_plot_changes(element, *args):
     global times, values
     element_name = element.name
     property_name = element.property.name
     device_name = element.property.device.name
     print(f"{device_name}.{property_name}.{element_name}={element.value}")
-    current_time = datetime.datetime.now()
+    # current_time = datetime.datetime.now()
+    current_time = element.property.timestamp
     times.append(current_time)
     values.append(element.value)
     update_plot()

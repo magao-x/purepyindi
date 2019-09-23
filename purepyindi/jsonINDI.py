@@ -7,12 +7,9 @@ import json
 
 c = None
 
-def convert_to_json(indi_dict):
-    return json.dumps(indi_dict, indent=2, sort_keys=True)
-
-def watcher(_):
+def watcher(*_):
     global c
-    print(convert_to_json(c.to_dict()))
+    print(json.dumps(c.to_jsonable(), indent=2, sort_keys=True))
 
 def main():
     global c
@@ -50,7 +47,7 @@ def main():
     c.start()
     while len(c.devices) == 0:
         time.sleep(1)
-    print(convert_to_json(c.to_dict()))
+    watcher()
     if args.watch:
         c.add_watcher(watcher)
         while True:

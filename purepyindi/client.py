@@ -20,6 +20,7 @@ from .constants import (
     SwitchRule,
     SwitchState,
     CHUNK_MAX_READ_SIZE,
+    MAX_ELEMENT_HISTORY,
 )
 from .log import debug, info, warn, error, critical
 from .parser import INDIStreamParser
@@ -169,17 +170,17 @@ class INDIClient:
                 else:
                     del self.devices[update['device']]
                 did_anything_change = True
-        if did_anything_change:
-            for watcher in self.watchers:
-                watcher(update)
-            return True
-        return False
+        for watcher in self.watchers:
+            watcher(update, did_anything_change)
+        return did_anything_change
     def mutate(self, update):
         self.apply_update(update)
         self._outbound_queue.put_nowait(update)
         debug(f"Enqueued mutation: {update}")
     def to_dict(self):
         return {name: device.to_dict() for name, device in self.devices.items()}
+    def to_jsonable(self):
+        return {name: device.to_jsonable() for name, device in self.devices.items()}
     def __str__(self):
         str_represenation = ''
         for device_name in self.devices:
@@ -315,9 +316,8 @@ class Device:
                 did_anything_change = True
         else:
             raise RuntimeError("Unknown INDIAction:", update['action'])
-        if did_anything_change:
-            for watcher in self.watchers:
-                watcher(self)
+        for watcher in self.watchers:
+            watcher(self, did_anything_change)
         return did_anything_change
     def create_property(self, property_name, update):
         kind = update['property']['kind']
@@ -338,6 +338,32 @@ class Device:
             'name': self.name,
             'properties': {name: prop.to_dict() for name, prop in self.properties.items()},
         }
+    def to_jsonable(self):
+        return {
+            'name': self.name,
+            'properties': {name: prop.to_jsonable() for name, prop in self.properties.items()},
+        }
+
+class ElementHistory:
+    def __init__(self, element, max_history=MAX_ELEMENT_HISTORY):
+        self.element = element
+        self.max_history = max_history
+        self.times, self.values = [], []
+    def add(self, timestamp, value):
+        self.times.append(timestamp)
+        self.values.append(value)
+        if len(self.times) > self.max_history:
+            self.times.pop(0)
+            self.values.pop(0)
+            assert len(self.times) <= self.max_history
+    def to_dict(self):
+        return {'times': self.times, 'values': self.values}
+    def to_jsonable(self):
+        the_dict = self.to_dict()
+        the_dict['times'] = list(map(format_datetime_as_iso, the_dict['times']))
+        if self.element.property.KIND in (INDIPropertyKind.LIGHT, INDIPropertyKind.SWITCH):
+            the_dict['values'] = list(map(lambda x: x.value, the_dict['values']))
+        return the_dict
 
 class Element:
     def __init__(self, name, parent_property):
@@ -346,6 +372,7 @@ class Element:
         self._value = None
         self._label = None
         self.watchers = set()
+        self.history = ElementHistory(self)
     def add_watcher(self, watcher_callback):
         self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
@@ -355,7 +382,14 @@ class Element:
             'name': self.name,
             'value': self.value,
             'label': self.label,
+            'history': self.history.to_dict()
         }
+    def to_jsonable(self):
+        the_dict = self.to_dict()
+        if hasattr(the_dict['value'], 'value'):
+            the_dict['value'] = the_dict['value'].value  # convert any enums into strings
+        the_dict['history'] = self.history.to_jsonable()
+        return the_dict
     def _update_from_server(self, element_update):
         did_anything_change = False
         if element_update['value'] != self._value:
@@ -365,8 +399,12 @@ class Element:
             self._label = element_update['label']
             did_anything_change = True
         if did_anything_change:
-            for watcher in self.watchers:
-                watcher(self)
+            # TODO Once INDI messages reliably update their timestamps,
+            # we should use those. See https://github.com/magao-x/MagAOX/issues/38
+            # timestamp = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+            self.history.add(self.property.timestamp, self._value)
+        for watcher in self.watchers:
+            watcher(self, did_anything_change)
         return did_anything_change
     @property
     def label(self):
@@ -475,6 +513,22 @@ class Property:
     def to_dict(self):
         property_dict = {
             'name': self.name,
+            'timestamp': self.timestamp,
+            'label': self._label,
+            'perm': self.perm,
+            'timeout': self.timeout,
+            'group': self.group,
+            'state': self.state,
+            'message': self.message,
+            'kind': self.KIND,
+            'elements': {},
+        }
+        for element in self.elements:
+            property_dict['elements'][element] = self.elements[element].to_dict()
+        return property_dict
+    def to_jsonable(self):
+        property_dict = {
+            'name': self.name,
             'timestamp': format_datetime_as_iso(self.timestamp),
             'label': self._label,
             'perm': self.perm.value,
@@ -486,7 +540,7 @@ class Property:
             'elements': {},
         }
         for element in self.elements:
-            property_dict['elements'][element] = self.elements[element].to_dict()
+            property_dict['elements'][element] = self.elements[element].to_jsonable()
         return property_dict
     def apply_update(self, update):
         did_anything_change = False
@@ -515,9 +569,8 @@ class Property:
             did_element_change = el._update_from_server(element_update)
             assert did_element_change in (True, False), "Missing boolean return from Element._update_from_server"
             did_anything_change = did_element_change or did_anything_change
-        if did_anything_change:
-            for watcher in self.watchers:
-                watcher(self)
+        for watcher in self.watchers:
+            watcher(self, did_anything_change)
         return did_anything_change
     def get_or_create_element(self, element_name):
         if not element_name in self.elements:
@@ -527,7 +580,7 @@ class Property:
         mutation = {
             'action': INDIActions.PROPERTY_NEW,
             'device': self.device.name,
-            'timestamp': datetime.datetime.utcnow().isoformat(),
+            'timestamp': format_datetime_as_iso(datetime.datetime.utcnow()),
             'property': {
                 'name': self.name,
                 'kind': self.KIND,

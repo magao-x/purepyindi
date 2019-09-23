@@ -67,8 +67,9 @@ c['devicename.propertyname.elementname'] = 123.45
 ## Watching elements
 
 ```
-def my_watcher(element):
-    print(f'{element.property.device.name}.{element.property.name}.{element.name} was just updated to {element.value}')
+def my_watcher(element, did_anything_change):
+    if did_anything_change:
+        print(f'{element.property.device.name}.{element.property.name}.{element.name} was just updated to {element.value}')
 
 c.devices['devicename'].properties['propertyname'].elements['elementname'].add_watcher(my_watcher)
 ```

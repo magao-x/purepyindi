@@ -7,7 +7,7 @@ import sys
 from pprint import pprint
 import traceback
 
-def watcher(update):
+def watcher(update, *args):
     for elemname in update['property']['elements']:
         elem = update['property']['elements'][elemname]
         print(f"{update['device']}.{update['property']['name']}.{elemname}={elem['value']} ({update['property']['state'].value})")
