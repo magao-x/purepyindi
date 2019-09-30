@@ -624,6 +624,10 @@ class SwitchProperty(Property):
         return did_super_change or did_anything_change
     def to_dict(self):
         the_dict = super().to_dict()
+        the_dict['rule'] = self.rule
+        return the_dict
+    def to_jsonable(self):
+        the_dict = super().to_dict()
         the_dict['rule'] = self.rule.value
         return the_dict
 
