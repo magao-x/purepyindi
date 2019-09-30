@@ -19,11 +19,12 @@ from .constants import (
     PropertyState,
     SwitchRule,
     SwitchState,
+    parse_string_into_enum,
     CHUNK_MAX_READ_SIZE,
     MAX_ELEMENT_HISTORY,
 )
 from .log import debug, info, warn, error, critical
-from .parser import INDIStreamParser
+from .parser import INDIStreamParser, parse_iso_to_datetime
 from .generator import mutation_to_xml_message, format_datetime_as_iso
 from pprint import pprint, pformat
 
@@ -539,6 +540,7 @@ class Property:
         for element in self.elements:
             property_dict['elements'][element] = self.elements[element].to_jsonable()
         return property_dict
+
     def apply_update(self, update):
         did_anything_change = False
         prop = update['property']

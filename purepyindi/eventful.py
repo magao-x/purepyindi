@@ -4,9 +4,12 @@ from pprint import pformat
 from .client import INDIClient
 from .constants import *
 from .generator import mutation_to_xml_message
-from .log import debug, info, warn
+import logging
 
 RECONNECTION_DELAY = 2
+SOCKET_READ_TIMEOUT = 60
+
+log = logging.getLogger(__name__)
 
 class AsyncINDIClient(INDIClient):
     QUEUE_CLASS = asyncio.Queue
@@ -42,51 +45,66 @@ class AsyncINDIClient(INDIClient):
     def start(self):
         raise NotImplementedError("To start, schedule an async task for AsyncINDIClient.run")
     async def run(self, reconnect_automatically=False):
-        connect = True
-        while connect:
+        while self.status is not ConnectionStatus.STOPPED:
             try:
                 reader_handle, writer_handle = await asyncio.open_connection(
                     self.host,
                     self.port
                 )
                 addr = writer_handle.get_extra_info("peername")
-                info(f"Connected to {addr!r}")
+                log.info(f"Connected to {addr!r}")
+                self.status = ConnectionStatus.CONNECTED
                 await self._outbound_queue.put({'action': INDIActions.GET_PROPERTIES})
                 self._reader = asyncio.ensure_future(self._handle_inbound(reader_handle))
                 self._writer = asyncio.ensure_future(self._handle_outbound(writer_handle))
-                await asyncio.gather(
-                    self._reader, self._writer
-                )
+                try:
+                    await asyncio.gather(
+                        self._reader, self._writer
+                    )
+                except asyncio.CancelledError:
+                    continue
             except ConnectionError as e:
-                warn(f"Failed to connect: {repr(e)}")
+                log.warn(f"Failed to connect: {repr(e)}")
                 if reconnect_automatically:
-                    warn(f"Retrying in {RECONNECTION_DELAY} seconds")
+                    log.warn(f"Retrying in {RECONNECTION_DELAY} seconds")
             except Exception as e:
-                warn(f"Swallowed exception: {type(e)}, {e}")
+                log.warn(f"Swallowed exception: {type(e)}, {e}")
                 raise
             finally:
-                self.stop()
-            connect = reconnect_automatically
-            await asyncio.sleep(RECONNECTION_DELAY)
-    async def stop(self):
-        self.status = ConnectionStatus.STOPPED
+                self._cancel_tasks()
+            if reconnect_automatically:
+                self.status = ConnectionStatus.RECONNECTING
+                await asyncio.sleep(RECONNECTION_DELAY)
+            else:
+                raise ConnectionError(f"Got disconnected from {self.host}:{self.port}, not attempting reconnection")
+    def _cancel_tasks(self):
         if self._reader is not None:
             self._reader.cancel()
         if self._writer is not None:
             self._writer.cancel()
+    async def stop(self):
+        self.status = ConnectionStatus.STOPPED
+        self._cancel_tasks()
     async def _handle_inbound(self, reader_handle):
-        while not self.status == ConnectionStatus.STOPPED:
-            data = await reader_handle.read(CHUNK_MAX_READ_SIZE)
-            debug(f"Feeding to parser: {repr(data)}")
+        while self.status == ConnectionStatus.CONNECTED:
+            try:
+                data = await asyncio.wait_for(reader_handle.read(CHUNK_MAX_READ_SIZE), SOCKET_READ_TIMEOUT)
+            except asyncio.TimeoutError:
+                log.debug(f"No data for {SOCKET_READ_TIMEOUT} sec")
+                continue
+            if data == b'':
+                log.debug("Got EOF from server")
+                raise ConnectionError("Got EOF from server")
+            log.debug(f"Feeding to parser: {repr(data)}")
             self._parser.parse(data)
             while not self._inbound_queue.empty():
                 update = await self._inbound_queue.get()
-                debug(f"Got update:\n{pformat(update)}")
+                log.debug(f"Got update:\n{pformat(update)}")
                 did_anything_change = self.apply_update(update)
                 for watcher in self.async_watchers:
                     await watcher(update, did_anything_change)
     async def _handle_outbound(self, writer_handle):
-        while not self.status == ConnectionStatus.STOPPED:
+        while self.status == ConnectionStatus.CONNECTED:
             try:
                 mutation = await self._outbound_queue.get()
                 outdata = mutation_to_xml_message(mutation)
