@@ -70,7 +70,7 @@ class INDIClient:
                 elapsed = time.time() - started
                 debug(f'{elapsed} sec elapsed, timeout is {timeout}')
                 if timeout is None or elapsed < timeout:
-                    time.sleep(1)
+                    time.sleep(0.1)
                 else:
                     raise TimeoutError(f"Timed out waiting for properties: {properties}")
         return time.time() - started
@@ -234,7 +234,7 @@ class INDIClient:
         if wait_for_properties:
             debug(f"Waiting for properties to become available: {required_properties}")
             self.wait_for_properties(required_properties, timeout=timeout)
-        def watcher_closure(the_prop):
+        def watcher_closure(the_prop, *args):
             debug(f'in watcher_closure for {the_prop.identifier}')
             if the_prop.state is PropertyState.BUSY:
                 return
@@ -270,7 +270,7 @@ class INDIClient:
             elapsed = time.time() - started
             debug(f'{elapsed} sec elapsed, timeout is {timeout}')
             if timeout is None or elapsed < timeout:
-                time.sleep(1)
+                time.sleep(0.1)
             else:
                 raise TimeoutError(f"Timed out waiting for state: {state_dict}")
         for propstr in required_properties:
