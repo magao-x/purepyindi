@@ -591,11 +591,9 @@ class Property:
         # > vectors, or may send just the members that change
         # > for other types.
         #    - INDI Whitepaper, page 4
-        if mutation['property']['kind'] in (INDIPropertyKind.TEXT, INDIPropertyKind.NUMBER):
-            for element_key in self.elements:
-                mutation['property']['elements'][element_key] = self.elements[element_key].to_dict()
-        else:
-            mutation['property']['elements'][element.name] = element.to_dict()
+        # "You know, it's fine to have our own standard"
+        #    - Dr. Jared R. Males, 2019-11-11
+        mutation['property']['elements'][element.name] = element.to_dict()
         # Actually encode the new value
         mutation['property']['elements'][element.name]['value'] = value
         self.device.mutate(mutation)
