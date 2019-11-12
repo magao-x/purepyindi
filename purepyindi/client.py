@@ -10,6 +10,7 @@ import threading
 import datetime
 import socket
 import time
+import math
 import queue
 from .constants import (
     ConnectionStatus,
@@ -362,8 +363,7 @@ class ElementHistory:
     def to_jsonable(self):
         the_dict = self.to_dict()
         the_dict['times'] = list(map(format_datetime_as_iso, the_dict['times']))
-        if self.element.property.KIND in (INDIPropertyKind.LIGHT, INDIPropertyKind.SWITCH):
-            the_dict['values'] = list(map(lambda x: x.value, the_dict['values']))
+        the_dict['values'] = list(map(self.element._make_value_jsonable, the_dict['values']))
         return the_dict
 
 class Element:
@@ -385,10 +385,13 @@ class Element:
             'label': self.label,
             'history': self.history.to_dict()
         }
+    def _make_value_jsonable(self, value):
+        if hasattr(value, 'value'):
+            value = value.value  # convert any enums into strings
+        return value
     def to_jsonable(self):
         the_dict = self.to_dict()
-        if hasattr(the_dict['value'], 'value'):
-            the_dict['value'] = the_dict['value'].value  # convert any enums into strings
+        the_dict['value'] = self._make_value_jsonable(the_dict['value'])
         the_dict['history'] = self.history.to_jsonable()
         return the_dict
     def _update_from_server(self, element_update):
@@ -431,6 +434,10 @@ class NumberElement(Element):
     min = None
     max = None
     step = None
+    def _make_value_jsonable(self, value):
+        if value is not None and math.isfinite(value):
+            return value
+        return None
     def to_dict(self):
         result = super().to_dict()
         result['format'] = self.format
