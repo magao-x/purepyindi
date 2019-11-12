@@ -254,7 +254,7 @@ class INDIClient:
             element.property.add_watcher(watcher_closure)
             # initial evaluation to handle case where we're already at
             # requested state
-            watcher_closure(element.property)
+            watcher_closure(element.property, True)
             element.value = value['value']
             debug(f"new element value: {key}={value['value']}")
             debug(f"Added watcher to element {element.identifier}")
