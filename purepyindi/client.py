@@ -234,7 +234,7 @@ class INDIClient:
         if wait_for_properties:
             debug(f"Waiting for properties to become available: {required_properties}")
             self.wait_for_properties(required_properties, timeout=timeout)
-        def watcher_closure(the_prop, *args):
+        def watcher_closure(the_prop, did_anything_change):
             debug(f'in watcher_closure for {the_prop.identifier}')
             if the_prop.state is PropertyState.BUSY:
                 return
