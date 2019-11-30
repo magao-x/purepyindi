@@ -82,11 +82,10 @@ class INDIClient:
     def remove_watcher(self, watcher_callback):
         with self.watcher_set_lock:
             self.watchers.remove(watcher_callback)
+    def get_properties(self):
+        self._outbound_queue.put_nowait({'action': INDIActions.GET_PROPERTIES})
     def _handle_outbound(self, current_socket):
-        get_properties_mutation = {'action': INDIActions.GET_PROPERTIES}
-        get_properties_msg = mutation_to_xml_message(get_properties_mutation)
-        debug(f"sending getProperties: {get_properties_msg}")
-        current_socket.sendall(get_properties_msg)
+        self.get_properties()
         while not self.status == ConnectionStatus.STOPPED:
             try:
                 mutation = self._outbound_queue.get(timeout=SYNCHRONIZATION_TIMEOUT)
@@ -308,11 +307,13 @@ class Device:
         property_name = update['property']['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
             if property_name in self.properties:
-                debug("WARNING: attempt to redefine existing property, ignoring")
-                return False
-            the_prop = self.create_property(property_name, update)
+                # NOTE: Notable spec deviation!
+                # Since we have multiple INDI servers, and will not always
+                # get a del[Kind]Property for all remote drivers, we must
+                # accept redefinitions.
+                debug(f"Redefining property {self.name}.{property_name} with new def message")
+            the_prop = self.get_or_create_property(property_name, update)
             did_anything_change = True
-            the_prop.apply_update(update)
             debug("Finished apply_update on property")
         elif update['action'] in (INDIActions.PROPERTY_SET, INDIActions.PROPERTY_NEW):
             if property_name in self.properties:
@@ -332,7 +333,7 @@ class Device:
             for watcher in self.watchers:
                 watcher(self, did_anything_change)
         return did_anything_change
-    def create_property(self, property_name, update):
+    def get_or_create_property(self, property_name, update):
         kind = update['property']['kind']
         if kind == INDIPropertyKind.NUMBER:
             prop = NumberProperty(property_name, self)
@@ -342,6 +343,26 @@ class Device:
             prop = SwitchProperty(property_name, self)
         elif kind == INDIPropertyKind.LIGHT:
             prop = LightProperty(property_name, self)
+        # Define all elements and metadata
+        prop.apply_update(update)
+        # NOTE: Notable spec deviation! We attempt to cleanly migrate
+        # element histories and watchers to redefined properties
+        if property_name in self.properties:
+            existing_prop = self.properties[property_name]
+            prop.watchers = existing_prop.watchers
+            for element_name, element in existing_prop.elements.items():
+                times, values = element.history.times, element.history.values
+                if element in prop.elements:
+                    prop.elements[element].watchers = element.watchers
+                    prop.elements[element].history.times = times
+                    prop.elements[element].history.values = values
+                else:
+                    if len(element.watchers):
+                        raise RuntimeError(
+                            "Losing reference to watchers upon property redefinition!"
+                        )
+            # Delete pre-existing property instance
+            del self.properties[property_name]
         self.properties[property_name] = prop
         return prop
     def mutate(self, update):

@@ -54,7 +54,7 @@ class AsyncINDIClient(INDIClient):
                 addr = writer_handle.get_extra_info("peername")
                 log.info(f"Connected to {addr!r}")
                 self.status = ConnectionStatus.CONNECTED
-                await self._outbound_queue.put({'action': INDIActions.GET_PROPERTIES})
+                self.get_properties()
                 self._reader = asyncio.ensure_future(self._handle_inbound(reader_handle))
                 self._writer = asyncio.ensure_future(self._handle_outbound(writer_handle))
                 try:
