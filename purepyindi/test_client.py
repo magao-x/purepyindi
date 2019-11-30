@@ -44,7 +44,7 @@ def test_did_anything_change():
     did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
     assert did_anything_change == True
     did_anything_change = client.apply_update(DEF_NUMBER_UPDATE)
-    assert did_anything_change == False
+    assert did_anything_change == True  # n.b. recreating a property counts as changing!
     did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
     assert did_anything_change == True
     did_anything_change = client.apply_update(SET_NUMBER_UPDATE)
