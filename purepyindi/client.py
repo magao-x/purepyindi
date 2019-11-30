@@ -36,6 +36,7 @@ class INDIClient:
     def __init__(self, host, port):
         self.host, self.port = host, port
         self.status = ConnectionStatus.STARTING
+        self.watcher_set_lock = threading.Lock()
         self._outbound_queue = self.QUEUE_CLASS()
         self._inbound_queue = self.QUEUE_CLASS()
         self._parser = INDIStreamParser(self._inbound_queue)
@@ -76,9 +77,11 @@ class INDIClient:
                     raise TimeoutError(f"Timed out waiting for properties: {properties}")
         return time.time() - started
     def add_watcher(self, watcher_callback):
-        self.watchers.add(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
-        self.watchers.remove(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.remove(watcher_callback)
     def _handle_outbound(self, current_socket):
         get_properties_mutation = {'action': INDIActions.GET_PROPERTIES}
         get_properties_msg = mutation_to_xml_message(get_properties_mutation)
@@ -172,8 +175,9 @@ class INDIClient:
                 else:
                     del self.devices[update['device']]
                 did_anything_change = True
-        for watcher in self.watchers:
-            watcher(update, did_anything_change)
+        with self.watcher_set_lock:
+            for watcher in self.watchers:
+                watcher(update, did_anything_change)
         return did_anything_change
     def mutate(self, update):
         self.apply_update(update)
@@ -290,13 +294,16 @@ class Device:
         self.name = name
         self.properties = {}
         self.watchers = set()
+        self.watcher_set_lock = threading.Lock()
     @property
     def identifier(self):
         return f'{self.name}'
     def add_watcher(self, watcher_callback):
-        self.watchers.add(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
-        self.watchers.remove(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.remove(watcher_callback)
     def apply_update(self, update):
         property_name = update['property']['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
@@ -321,8 +328,9 @@ class Device:
                 did_anything_change = True
         else:
             raise RuntimeError("Unknown INDIAction:", update['action'])
-        for watcher in self.watchers:
-            watcher(self, did_anything_change)
+        with self.watcher_set_lock:
+            for watcher in self.watchers:
+                watcher(self, did_anything_change)
         return did_anything_change
     def create_property(self, property_name, update):
         kind = update['property']['kind']
@@ -376,11 +384,14 @@ class Element:
         self._value = None
         self._label = None
         self.watchers = set()
+        self.watcher_set_lock = threading.Lock()
         self.history = ElementHistory(self)
     def add_watcher(self, watcher_callback):
-        self.watchers.add(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
-        self.watchers.remove(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.remove(watcher_callback)
     def to_dict(self):
         return {
             'name': self.name,
@@ -407,8 +418,9 @@ class Element:
             did_anything_change = True
         if did_anything_change:
             self.history.add(self.property.timestamp, self._value)
-        for watcher in self.watchers:
-            watcher(self, did_anything_change)
+        with self.watcher_set_lock:
+            for watcher in self.watchers:
+                watcher(self, did_anything_change)
         return did_anything_change
     @property
     def label(self):
@@ -502,10 +514,13 @@ class Property:
         self._state = None
         self.message = None
         self.watchers = set()
+        self.watcher_set_lock = threading.Lock()
     def add_watcher(self, watcher_callback):
-        self.watchers.add(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.add(watcher_callback)
     def remove_watcher(self, watcher_callback):
-        self.watchers.remove(watcher_callback)
+        with self.watcher_set_lock:
+            self.watchers.remove(watcher_callback)
     @property
     def state(self):
         return self._state
@@ -578,8 +593,9 @@ class Property:
             did_element_change = el._update_from_server(element_update)
             assert did_element_change in (True, False), "Missing boolean return from Element._update_from_server"
             did_anything_change = did_element_change or did_anything_change
-        for watcher in self.watchers:
-            watcher(self, did_anything_change)
+        with self.watcher_set_lock:
+            for watcher in self.watchers:
+                watcher(self, did_anything_change)
         return did_anything_change
     def get_or_create_element(self, element_name):
         if not element_name in self.elements:
