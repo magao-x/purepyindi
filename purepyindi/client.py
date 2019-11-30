@@ -250,12 +250,15 @@ class INDIClient:
                 else:
                     target_reached = value == the_elem.value
                 state_reached[ident] = target_reached
+        watched_properties = set()
         for key, value in state_dict.items():
             element = self.lookup_element(key)
-            element.property.add_watcher(watcher_closure)
-            # initial evaluation to handle case where we're already at
-            # requested state
-            watcher_closure(element.property, True)
+            if element.property not in watched_properties:
+                element.property.add_watcher(watcher_closure)
+                # initial evaluation to handle case where we're already at
+                # requested state
+                watcher_closure(element.property, True)
+                watched_properties.add(element.property)
             element.value = value['value']
             debug(f"new element value: {key}={value['value']}")
             debug(f"Added watcher to element {element.identifier}")
