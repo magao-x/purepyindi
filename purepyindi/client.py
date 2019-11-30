@@ -253,17 +253,16 @@ class INDIClient:
                     target_reached = state_dict[ident]['test'](the_elem.value, value)
                 else:
                     target_reached = value == the_elem.value
+                debug(f'Touching state_reached[{repr(ident)}], was {state_reached[ident]}')
                 state_reached[ident] = target_reached
         watched_properties = set()
         for key, value in state_dict.items():
             element = self.lookup_element(key)
+            element.value = value['value']
             if element.property not in watched_properties:
                 element.property.add_watcher(watcher_closure)
-                # initial evaluation to handle case where we're already at
-                # requested state
-                watcher_closure(element.property, True)
                 watched_properties.add(element.property)
-            element.value = value['value']
+            debug(f"{element.property.name}.state={element.property.state}")
             debug(f"new element value: {key}={value['value']}")
             debug(f"Added watcher to element {element.identifier}")
         ready = False
@@ -271,6 +270,7 @@ class INDIClient:
         elapsed = 0
         while not ready:
             if all(state_reached.values()):
+                debug(f'Reached all: {pformat(state_reached)}')
                 ready = True
                 break
             else:
