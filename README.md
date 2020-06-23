@@ -8,7 +8,8 @@ Follows the [INDI protocol version 1.7](http://www.clearskyinstitute.com/INDI/IN
 
   - supports nullable number properties (represented as the empty string or whitespace in the XML messages, as None in the Python API)
   - adds and expects the 'Z' suffix to indicate UTC in ISO timestamps (e.g. `2019-08-12T20:49:50.420459Z`) — other timezones not supported
-  - does not (yet) support sexagesimal number formats in properties
+  - does not support sexagesimal number formats in properties
+  - when changing text and number property vectors, only the changed element in the vector is sent as part of the `newProperty` message
 
 **Work-in-progress, mostly undocumented, minimal test coverage. Use at your own risk!**
 
