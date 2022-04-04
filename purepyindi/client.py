@@ -197,9 +197,7 @@ class INDIClient:
                     str_represenation += f"{device_name}.{property_name}.{element_name}={value}\n"
         return str_represenation
     def lookup_element(self, key):
-        bits = key.split('.')
-        if len(bits) != 3:
-            raise KeyError("Invalid key (must be of the format '<device_name>.<property_name>.<element_name>')")
+        bits = key.split('.', 3)
         device_name, property_name, element_name = bits
         if device_name in self.devices:
             device = self.devices[device_name]
