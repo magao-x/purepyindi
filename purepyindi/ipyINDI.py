@@ -7,11 +7,6 @@ import sys
 from pprint import pprint
 import traceback
 
-def watcher(update, *args):
-    for elemname in update['property']['elements']:
-        elem = update['property']['elements'][elemname]
-        print(f"{update['device']}.{update['property']['name']}.{elemname}={elem['value']} ({update['property']['state'].value})")
-
 def main():
     import argparse
     parser = argparse.ArgumentParser(add_help=False)
@@ -55,5 +50,4 @@ def main():
     element_name, _ = list(prop.elements.items())[0]
     print(f">>> c['{device_name}.{property_name}.{element_name}'] = 'something'")
     print()
-    c.add_watcher(watcher)
     IPython.embed()
