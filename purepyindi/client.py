@@ -302,8 +302,8 @@ class Device:
         with self.watcher_set_lock:
             self.watchers.remove(watcher_callback)
     def apply_update(self, update):
-        property_name = update['property']['name']
         if update['action'] is INDIActions.PROPERTY_DEF:
+            property_name = update['property']['name']
             if property_name in self.properties:
                 # NOTE: Notable spec deviation!
                 # Since we have multiple INDI servers, and will not always
@@ -314,6 +314,7 @@ class Device:
             did_anything_change = True
             debug("Finished apply_update on property")
         elif update['action'] in (INDIActions.PROPERTY_SET, INDIActions.PROPERTY_NEW):
+            property_name = update['property']['name']
             if property_name in self.properties:
                 did_anything_change = self.properties[property_name].apply_update(update)
             else:
@@ -321,7 +322,7 @@ class Device:
                 debug(f"WARNING: got an update for a property "
                       f"we never saw defined: {update}")
         elif update['action'] is INDIActions.PROPERTY_DEL:
-            if update['property']['name'] in self.properties:
+            if update['name'] in self.properties:
                 # delete one property
                 del self.properties[update['name']]
                 did_anything_change = True
