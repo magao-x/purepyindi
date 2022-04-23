@@ -227,11 +227,18 @@ class INDIClient:
     def __setitem__(self, key, value):
         element = self.lookup_element(key)
         element.value = value
-    def wait_for_state(self, state_dict, wait_for_properties=False, timeout=None):
+    def wait_for_state(self, user_state_dict, wait_for_properties=False, timeout=None):
         required_properties = set()
+        state_dict = {}
+        # enable shorthand of key: value instead of key: {'value': value}
+        for key in user_state_dict:
+            if isinstance(user_state_dict[key], dict):
+                state_dict[key] = user_state_dict[key]
+            else:
+                state_dict[key] = {'value': user_state_dict[key]}
         state_reached = state_dict.copy()
         for key, value in state_reached.items():
-            state_reached[key] = False
+            state_reached[key] = self[key] == value['value']
             required_properties.add(key.rsplit('.', 1)[0])
         if wait_for_properties:
             debug(f"Waiting for properties to become available: {required_properties}")
@@ -255,10 +262,11 @@ class INDIClient:
         watched_properties = set()
         for key, value in state_dict.items():
             element = self.lookup_element(key)
-            element.value = value['value']
             if element.property not in watched_properties:
                 element.property.add_watcher(watcher_closure)
                 watched_properties.add(element.property)
+            if not state_reached[key]:
+                element.value = value['value']
             debug(f"{element.property.name}.state={element.property.state}")
             debug(f"new element value: {key}={value['value']}")
             debug(f"Added watcher to element {element.identifier}")
@@ -514,10 +522,10 @@ class SwitchElement(Element):
         return self._value
     @value.setter
     def value(self, new_value):
-        if new_value in SwitchState:
+        if new_value in (SwitchState.ON, SwitchState.OFF):
             return Element.value.fset(self, new_value)
         else:
-            raise ValueError("Valid switch states are attributes of the SwitchState enum")
+            raise ValueError(f"Valid switch states are attributes of the SwitchState enum, got {new_value=}")
 
 class Property:
     ELEMENT_CLASS = Element

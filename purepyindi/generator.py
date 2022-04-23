@@ -1,11 +1,14 @@
 import xml.etree.ElementTree as ET
 import datetime
+import logging
 from .constants import (
     INDIPropertyKind,
     INDIActions,
     ISO_TIMESTAMP_FORMAT,
     INDI_PROTOCOL_VERSION_STRING,
 )
+
+log = logging.getLogger(__name__)
 
 KINDS_TO_NEW_TAG_NAMES = {
     INDIPropertyKind.NUMBER: ('newNumberVector', 'oneNumber'),
@@ -55,4 +58,5 @@ def mutation_to_xml_message(mutation, timestamp=None):
     elif mutation['action'] is INDIActions.GET_PROPERTIES:
         xml_doc = construct_get_properties(mutation)
     xml_message = ET.tostring(xml_doc, encoding='unicode')
+    log.debug(xml_message)
     return xml_message.encode('utf8') + b'\n'
