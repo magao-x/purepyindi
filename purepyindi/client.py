@@ -153,6 +153,7 @@ class INDIClient:
         speaking, updating anything.
         '''
         device_name = update['device']
+        did_anything_change = False
         if update['action'] is INDIActions.PROPERTY_DEF:
             the_device = self.get_or_create_device(device_name)
             did_anything_change = the_device.apply_update(update)
@@ -310,6 +311,7 @@ class Device:
         with self.watcher_set_lock:
             self.watchers.remove(watcher_callback)
     def apply_update(self, update):
+        did_anything_change = False
         if update['action'] is INDIActions.PROPERTY_DEF:
             property_name = update['property']['name']
             if property_name in self.properties:
@@ -350,6 +352,8 @@ class Device:
             prop = SwitchProperty(property_name, self)
         elif kind == INDIPropertyKind.LIGHT:
             prop = LightProperty(property_name, self)
+        else:
+            raise ValueError(f"Unknown property kind: {kind}")
         # Define all elements and metadata
         prop.apply_update(update)
         # NOTE: Notable spec deviation! We attempt to cleanly migrate
