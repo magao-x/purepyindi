@@ -1,8 +1,10 @@
 # purepyindi
 
-**Build status:** [![CircleCI](https://circleci.com/gh/magao-x/purepyindi.svg?style=svg)](https://circleci.com/gh/magao-x/purepyindi)
+**Build status:** [![Status badge for continuous integration](https://github.com/magao-x/purepyindi/actions/workflows/python-app.yml/badge.svg)](https://github.com/magao-x/purepyindi/actions/workflows/python-app.yml)
 
 A pure Python client for [INDI](https://indilib.org/) (the Instrument Neutral Distributed Interface) implemented with only the standard library of Python 3.6. (Compatible with Python 3.6 and later.)
+
+Used by the [MagAO-X](https://magao-x.org/) team to control the instrument from scripts and Python notebooks.
 
 Follows the [INDI protocol version 1.7](http://www.clearskyinstitute.com/INDI/INDI.pdf) spec, with the following deviations:
 
@@ -10,13 +12,6 @@ Follows the [INDI protocol version 1.7](http://www.clearskyinstitute.com/INDI/IN
   - adds and expects the 'Z' suffix to indicate UTC in ISO timestamps (e.g. `2019-08-12T20:49:50.420459Z`) — other timezones not supported
   - does not support sexagesimal number formats in properties
   - when changing text and number property vectors, only the changed element in the vector is sent as part of the `newProperty` message
-
-**Work-in-progress, mostly undocumented, minimal test coverage. Use at your own risk!**
-
-## Utility scripts
-
-  * `ipyindi` - Connect to an INDI server and start an IPython REPL with the INDIClient available as `c`
-  * `plotINDI` - Watch and plot a time series of changes to a (numeric) INDI property element as they happen
 
 ## Quick start
 
@@ -89,4 +84,4 @@ c.wait_for_state({
 })
 ```
 
-The `'test'` key lets you handle approximate equality in a customizable way. The callable gets the `value` from the sibling key in that dict, and the `current` value from incoming INDI messages that update the referenced element.
+The `'test'` key lets you handle approximate equality in a customizable way, which can be useful when commanding things like stage moves where the requested position will not be reached to infinite precision. The callable gets the `value` from the sibling key in that dict, and the `current` value from incoming INDI messages that update the referenced element.
