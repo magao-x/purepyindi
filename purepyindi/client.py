@@ -94,13 +94,20 @@ class INDIClient:
             debug(f"Issuing mutation:\n{pformat(mutation)}")
             outdata = mutation_to_xml_message(mutation)
             debug(f"XML for mutation:\n{outdata.decode('utf8')}")
-            current_socket.sendall(outdata)
+            try:
+                current_socket.sendall(outdata)
+            except Exception:
+                self.status = ConnectionStatus.ERROR
+                raise
     def _handle_inbound(self, current_socket):
         while not self.status == ConnectionStatus.STOPPED:
             try:
                 data = current_socket.recv(CHUNK_MAX_READ_SIZE)
             except socket.timeout:
                 continue
+            except Exception:
+                self.status = ConnectionStatus.ERROR
+                raise
             debug(f"Feeding to parser: {repr(data)}")
             self._parser.parse(data)
             while not self._inbound_queue.empty():
@@ -110,7 +117,12 @@ class INDIClient:
     def start(self):
         if self.status is not ConnectionStatus.CONNECTED:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._socket.connect((self.host, self.port))
+            try:
+                self._socket.connect((self.host, self.port))
+            except ConnectionRefusedError as e:
+                self.status = ConnectionStatus.ERROR
+                error(f"Connection refused: {e}")
+                raise
             self._socket.settimeout(SYNCHRONIZATION_TIMEOUT)
             debug("connected")
             self.status = ConnectionStatus.CONNECTED

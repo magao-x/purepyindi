@@ -30,6 +30,7 @@ class ConnectionStatus(Enum):
     CONNECTED = 2
     RECONNECTING = 3
     STOPPED = 4
+    ERROR = 5
 
 class INDIActions(Enum):
     PROPERTY_DEF = 'def'
