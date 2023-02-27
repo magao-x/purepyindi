@@ -56,9 +56,9 @@ def test_did_anything_change():
 
 def test_start_stop_start_stop():
     with mock.patch('socket.socket') as mock_socket:
-        mock_socket.connect.return_value = True
-        mock_socket.sendall.return_value = None
-        mock_socket.recv.return_value = ''
+        mock_socket().connect.return_value = True
+        mock_socket().sendall.return_value = None
+        mock_socket().recv.return_value = b''
         client = INDIClient('localhost', 7624)
         client.start()
         client.stop()

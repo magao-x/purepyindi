@@ -142,12 +142,13 @@ class INDIClient:
             )
             self._reader.start()
     def stop(self):
-        if self.status is ConnectionStatus.CONNECTED:
-            self.status = ConnectionStatus.STOPPED
-            self._writer.join()
+        self.status = ConnectionStatus.STOPPED
+        if self._reader is not None:
             self._reader.join()
-            self._writer = None
             self._reader = None
+        if self._writer is not None:
+            self._writer.join()
+            self._writer = None
     def _new_parser(self):
         self._parser = INDIStreamParser(self._inbound_queue)
     def get_or_create_device(self, device_name):
@@ -303,8 +304,6 @@ class INDIClient:
             devname, propname = propstr.split('.', 1)
             self.devices[devname].properties[propname].remove_watcher(watcher_closure)
         return time.time() - started
-
-
 
 class Device:
     def __init__(self, name, client_instance):
